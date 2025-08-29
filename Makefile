@@ -2,7 +2,7 @@
 
 build:
 	@echo "Building Astra core..."
-	cd astra-core && cargo build --release
+	cd astra-core && cargo build --target x86_64-unknown-linux-musl --release
 
 install:
 	@echo "Installing Astra.nvim..."
