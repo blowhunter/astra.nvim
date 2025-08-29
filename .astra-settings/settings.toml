@@ -1,0 +1,12 @@
+[sftp]
+host = "example.com"
+port = 22
+username = "testuser"
+password = "testpass"
+remote_path = "/remote/test"
+local_path = "/local/test"
+
+[sync]
+auto_sync = true
+sync_on_save = true
+sync_interval = 30000

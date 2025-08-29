@@ -62,6 +62,12 @@ pub enum Commands {
         #[arg(short, long)]
         local: String,
     },
+
+    #[command(about = "Test configuration file discovery")]
+    ConfigTest {
+        #[arg(short, long)]
+        config: Option<String>,
+    },
 }
 
 pub async fn run_cli(cli: Cli) -> AstraResult<()> {
@@ -72,16 +78,44 @@ pub async fn run_cli(cli: Cli) -> AstraResult<()> {
             init_config(&config).await?;
         }
         Commands::Sync { config, mode } => {
-            sync_files(config.as_deref().unwrap_or("astra.json"), &mode).await?;
+            if let Some(config_path) = config {
+                sync_files(Some(&config_path), &mode).await?;
+            } else {
+                // Use automatic config discovery
+                sync_files(None, &mode).await?;
+            }
         }
         Commands::Status { config } => {
-            check_status(config.as_deref().unwrap_or("astra.json")).await?;
+            if let Some(config_path) = config {
+                check_status(Some(&config_path)).await?;
+            } else {
+                // Use automatic config discovery
+                check_status(None).await?;
+            }
         }
         Commands::Upload { config, local, remote } => {
-            upload_single_file(config.as_deref().unwrap_or("astra.json"), &local, &remote).await?;
+            if let Some(config_path) = config {
+                upload_single_file(Some(&config_path), &local, &remote).await?;
+            } else {
+                // Use automatic config discovery
+                upload_single_file(None, &local, &remote).await?;
+            }
         }
         Commands::Download { config, remote, local } => {
-            download_single_file(config.as_deref().unwrap_or("astra.json"), &remote, &local).await?;
+            if let Some(config_path) = config {
+                download_single_file(Some(&config_path), &remote, &local).await?;
+            } else {
+                // Use automatic config discovery
+                download_single_file(None, &remote, &local).await?;
+            }
+        }
+        Commands::ConfigTest { config } => {
+            if let Some(config_path) = config {
+                test_config(Some(&config_path)).await?;
+            } else {
+                // Use automatic config discovery
+                test_config(None).await?;
+            }
         }
     }
     
@@ -110,8 +144,11 @@ async fn init_config(config_path: &str) -> AstraResult<()> {
     Ok(())
 }
 
-async fn sync_files(config_path: &str, _mode: &str) -> AstraResult<()> {
-    let config_reader = ConfigReader::new(Some(config_path.to_string()));
+async fn sync_files(config_path: Option<&str>, _mode: &str) -> AstraResult<()> {
+    let config_reader = match config_path {
+        Some(path) => ConfigReader::new(Some(path.to_string())),
+        None => ConfigReader::new(None), // Use automatic discovery
+    };
     let config = config_reader.read_config()?;
     
     let client = SftpClient::new(config)?;
@@ -169,8 +206,11 @@ async fn sync_files(config_path: &str, _mode: &str) -> AstraResult<()> {
     Ok(())
 }
 
-async fn check_status(config_path: &str) -> AstraResult<()> {
-    let config_reader = ConfigReader::new(Some(config_path.to_string()));
+async fn check_status(config_path: Option<&str>) -> AstraResult<()> {
+    let config_reader = match config_path {
+        Some(path) => ConfigReader::new(Some(path.to_string())),
+        None => ConfigReader::new(None), // Use automatic discovery
+    };
     let config = config_reader.read_config()?;
     
     let client = SftpClient::new(config)?;
@@ -196,8 +236,11 @@ async fn check_status(config_path: &str) -> AstraResult<()> {
     Ok(())
 }
 
-async fn upload_single_file(config_path: &str, local_path: &str, remote_path: &str) -> AstraResult<()> {
-    let config_reader = ConfigReader::new(Some(config_path.to_string()));
+async fn upload_single_file(config_path: Option<&str>, local_path: &str, remote_path: &str) -> AstraResult<()> {
+    let config_reader = match config_path {
+        Some(path) => ConfigReader::new(Some(path.to_string())),
+        None => ConfigReader::new(None), // Use automatic discovery
+    };
     let config = config_reader.read_config()?;
     
     let client = SftpClient::new(config)?;
@@ -207,13 +250,67 @@ async fn upload_single_file(config_path: &str, local_path: &str, remote_path: &s
     Ok(())
 }
 
-async fn download_single_file(config_path: &str, remote_path: &str, local_path: &str) -> AstraResult<()> {
-    let config_reader = ConfigReader::new(Some(config_path.to_string()));
+async fn download_single_file(config_path: Option<&str>, remote_path: &str, local_path: &str) -> AstraResult<()> {
+    let config_reader = match config_path {
+        Some(path) => ConfigReader::new(Some(path.to_string())),
+        None => ConfigReader::new(None), // Use automatic discovery
+    };
     let config = config_reader.read_config()?;
     
     let client = SftpClient::new(config)?;
     client.download_file(Path::new(remote_path), Path::new(local_path))?;
     
     println!("File downloaded successfully: {} -> {}", remote_path, local_path);
+    Ok(())
+}
+
+async fn test_config(config_path: Option<&str>) -> AstraResult<()> {
+    println!("Testing configuration discovery...");
+    
+    let config_reader = match config_path {
+        Some(path) => {
+            println!("Using explicit config path: {}", path);
+            ConfigReader::new(Some(path.to_string()))
+        },
+        None => {
+            println!("Using automatic config discovery");
+            ConfigReader::new(None)
+        }
+    };
+    
+    // Note: base_dir is private, so we can't print it here
+    
+    // Test project root discovery
+    if let Some(project_root) = config_reader.find_project_root() {
+        println!("Project root found: {}", project_root);
+    } else {
+        println!("No project root found in parent directories");
+    }
+    
+    // Try to read config
+    match config_reader.read_config() {
+        Ok(config) => {
+            println!("✅ Configuration loaded successfully!");
+            println!("Host: {}", config.host);
+            println!("Port: {}", config.port);
+            println!("Username: {}", config.username);
+            println!("Remote path: {}", config.remote_path);
+            println!("Local path: {}", config.local_path);
+            if let Some(password) = &config.password {
+                println!("Password: ***");
+            } else {
+                println!("Password: None");
+            }
+            if let Some(private_key_path) = &config.private_key_path {
+                println!("Private key path: {}", private_key_path);
+            } else {
+                println!("Private key path: None");
+            }
+        }
+        Err(e) => {
+            println!("❌ Configuration error: {}", e);
+        }
+    }
+    
     Ok(())
 }

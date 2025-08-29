@@ -21,7 +21,31 @@ impl ConfigReader {
         // 1. .astra-settings/settings.toml
         // 2. .vscode/sftp.json
         // 3. astra.json (existing format)
+        
+        // If base_dir is already a file path (not a directory), treat it as a config file
+        if self.base_dir.ends_with(".json") || self.base_dir.ends_with(".toml") {
+            if self.base_dir.ends_with(".toml") {
+                return self.read_astra_toml_config_from_path(&self.base_dir);
+            } else {
+                return self.read_legacy_astra_config_from_path(&self.base_dir);
+            }
+        }
+        
+        // First, try to use project root discovery for automatic config finding
+        if let Some(project_root) = self.find_project_root() {
+            let project_reader = ConfigReader::new(Some(project_root));
+            if let Ok(config) = project_reader.read_astra_toml_config() {
+                return Ok(config);
+            }
+            if let Ok(config) = project_reader.read_vscode_sftp_config() {
+                return Ok(config);
+            }
+            if let Ok(config) = project_reader.read_legacy_astra_config() {
+                return Ok(config);
+            }
+        }
 
+        // If no project root found, try current directory
         if let Ok(config) = self.read_astra_toml_config() {
             return Ok(config);
         }
@@ -41,14 +65,17 @@ impl ConfigReader {
 
     fn read_astra_toml_config(&self) -> AstraResult<SftpConfig> {
         let config_path = format!("{}/.astra-settings/settings.toml", self.base_dir);
+        self.read_astra_toml_config_from_path(&config_path)
+    }
 
-        if !Path::new(&config_path).exists() {
+    fn read_astra_toml_config_from_path(&self, config_path: &str) -> AstraResult<SftpConfig> {
+        if !Path::new(config_path).exists() {
             return Err(AstraError::ConfigurationError(
                 "Astra TOML config not found".to_string(),
             ));
         }
 
-        let content = fs::read_to_string(&config_path).map_err(|e| {
+        let content = fs::read_to_string(config_path).map_err(|e| {
             AstraError::ConfigurationError(format!("Failed to read TOML config: {}", e))
         })?;
 
@@ -88,14 +115,17 @@ impl ConfigReader {
 
     fn read_legacy_astra_config(&self) -> AstraResult<SftpConfig> {
         let config_path = format!("{}/astra.json", self.base_dir);
+        self.read_legacy_astra_config_from_path(&config_path)
+    }
 
-        if !Path::new(&config_path).exists() {
+    fn read_legacy_astra_config_from_path(&self, config_path: &str) -> AstraResult<SftpConfig> {
+        if !Path::new(config_path).exists() {
             return Err(AstraError::ConfigurationError(
                 "Legacy Astra config not found".to_string(),
             ));
         }
 
-        let content = fs::read_to_string(&config_path).map_err(|e| {
+        let content = fs::read_to_string(config_path).map_err(|e| {
             AstraError::ConfigurationError(format!("Failed to read legacy Astra config: {}", e))
         })?;
 

@@ -1,0 +1,9 @@
+{
+  "host": "example.com",
+  "port": 22,
+  "username": "user",
+  "password": null,
+  "private_key_path": null,
+  "remote_path": "/remote/path",
+  "local_path": "/home/ethan/work/rust/astra.nvim"
+}
