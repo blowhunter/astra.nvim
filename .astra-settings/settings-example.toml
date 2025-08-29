@@ -1,0 +1,21 @@
+[sftp]
+# 基本连接配置
+host = "127.0.0.1"        # 请替换为您的服务器地址
+port = 22
+username = "your_username" # 请替换为您的用户名
+
+# 认证方式（二选一）
+# 方式1：密码认证
+password = "your_password"  # 请替换为您的密码
+
+# 方式2：SSH密钥认证（推荐）
+# private_key_path = "/home/user/.ssh/id_rsa"  # 请替换为您的私钥路径
+
+# 路径配置
+remote_path = "/tmp/remote"   # 远程目录
+local_path = "/tmp/local"     # 本地目录
+
+[sync]
+auto_sync = false            # 关闭自动同步（测试时）
+sync_on_save = false         # 关闭保存时同步（测试时）
+sync_interval = 30000

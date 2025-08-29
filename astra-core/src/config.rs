@@ -16,6 +16,29 @@ impl ConfigReader {
         }
     }
 
+    /// Expand ~ to home directory in a path
+    fn expand_tilde(path: &str) -> String {
+        if let Some(rest) = path.strip_prefix("~/") {
+            // Handle ~/path
+            if let Ok(home_dir) = env::var("HOME") {
+                format!("{}/{}", home_dir, rest)
+            } else {
+                // Fallback to current directory if HOME is not set
+                format!("{}/{}", env::current_dir().unwrap().to_string_lossy(), rest)
+            }
+        } else if path == "~" {
+            // Handle plain ~
+            if let Ok(home_dir) = env::var("HOME") {
+                home_dir
+            } else {
+                env::current_dir().unwrap().to_string_lossy().to_string()
+            }
+        } else {
+            // No tilde, return as-is
+            path.to_string()
+        }
+    }
+
     pub fn read_config(&self) -> AstraResult<SftpConfig> {
         // Try to read configurations in this order:
         // 1. .astra-settings/settings.toml
@@ -83,7 +106,16 @@ impl ConfigReader {
             AstraError::ConfigurationError(format!("Failed to parse TOML config: {}", e))
         })?;
 
-        Ok(config.into())
+        // Expand ~ in paths
+        let mut expanded_config = config.clone();
+        if let Some(private_key_path) = &expanded_config.sftp.private_key_path {
+            expanded_config.sftp.private_key_path = Some(Self::expand_tilde(private_key_path));
+        }
+        if let Some(local_path) = &expanded_config.sftp.local_path {
+            expanded_config.sftp.local_path = Some(Self::expand_tilde(local_path));
+        }
+
+        Ok(expanded_config.into())
     }
 
     fn read_vscode_sftp_config(&self) -> AstraResult<SftpConfig> {
@@ -110,7 +142,20 @@ impl ConfigReader {
             ));
         }
 
-        Ok(config.into())
+        // Expand ~ in paths and convert to SftpConfig
+        let expanded_config: SftpConfig = config.into();
+        let mut final_config = expanded_config.clone();
+        
+        if let Some(private_key_path) = &final_config.private_key_path {
+            if private_key_path.starts_with("~") {
+                final_config.private_key_path = Some(Self::expand_tilde(private_key_path));
+            }
+        }
+        if final_config.local_path.starts_with("~") {
+            final_config.local_path = Self::expand_tilde(&final_config.local_path);
+        }
+
+        Ok(final_config)
     }
 
     fn read_legacy_astra_config(&self) -> AstraResult<SftpConfig> {
@@ -129,9 +174,19 @@ impl ConfigReader {
             AstraError::ConfigurationError(format!("Failed to read legacy Astra config: {}", e))
         })?;
 
-        let config: SftpConfig = serde_json::from_str(&content).map_err(|e| {
+        let mut config: SftpConfig = serde_json::from_str(&content).map_err(|e| {
             AstraError::ConfigurationError(format!("Failed to parse legacy Astra config: {}", e))
         })?;
+
+        // Expand ~ in paths
+        if let Some(private_key_path) = &config.private_key_path {
+            if private_key_path.starts_with("~") {
+                config.private_key_path = Some(Self::expand_tilde(private_key_path));
+            }
+        }
+        if config.local_path.starts_with("~") {
+            config.local_path = Self::expand_tilde(&config.local_path);
+        }
 
         Ok(config)
     }

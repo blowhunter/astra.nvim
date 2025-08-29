@@ -14,7 +14,7 @@ install:
 install-core: build
 	@echo "Installing core binary..."
 	mkdir -p ~/.local/share/nvim/astra-core/target/release
-	cp astra-core/target/release/astra-core ~/.local/share/nvim/astra-core/target/release/
+	cp astra-core/target/x86_64-unknown-linux-musl/release/astra-core ~/.local/share/nvim/astra-core/target/release/
 
 clean:
 	cd astra-core && cargo clean
