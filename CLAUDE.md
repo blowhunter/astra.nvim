@@ -168,11 +168,11 @@ The incremental sync process works as follows:
 The plugin supports multiple configuration file formats with automatic discovery:
 
 ### Priority Order
-1. **TOML Configuration** (`.astro-settings/settings.toml`)
+1. **TOML Configuration** (`.astra-settings/settings.toml`)
 2. **VSCode SFTP Configuration** (`.vscode/sftp.json`)  
 3. **Legacy Astra Configuration** (`astra.json`)
 
-### TOML Configuration (.astro-settings/settings.toml)
+### TOML Configuration (.astra-settings/settings.toml)
 ```toml
 [sftp]
 host = "server.com"

@@ -231,11 +231,11 @@ astra.nvim/
 
 The plugin supports multiple configuration file formats with the following priority order:
 
-1. **TOML Configuration** (`.astro-settings/settings.toml`)
+1. **TOML Configuration** (`.astra-settings/settings.toml`)
 2. **VSCode SFTP Configuration** (`.vscode/sftp.json`)
 3. **Legacy Astra Configuration** (`astra.json`)
 
-### TOML Configuration (.astro-settings/settings.toml)
+### TOML Configuration (.astra-settings/settings.toml)
 
 The recommended format for new projects:
 
@@ -292,7 +292,7 @@ The original format:
 
 The plugin automatically searches for configuration files in the following order:
 
-1. **TOML Configuration**: Looks for `.astro-settings/settings.toml` in the current directory or parent directories
+1. **TOML Configuration**: Looks for `.astra-settings/settings.toml` in the current directory or parent directories
 2. **VSCode SFTP Configuration**: Looks for `.vscode/sftp.json` in the current directory or parent directories
 3. **Legacy Astra Configuration**: Looks for `astra.json` in the current directory
 

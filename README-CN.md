@@ -231,11 +231,11 @@ astra.nvim/
 
 插件支持多种配置文件格式，按以下优先级顺序：
 
-1. **TOML 配置**（`.astro-settings/settings.toml`）
+1. **TOML 配置**（`.astra-settings/settings.toml`）
 2. **VSCode SFTP 配置**（`.vscode/sftp.json`）
 3. **传统 Astra 配置**（`astra.json`）
 
-### TOML 配置 (.astro-settings/settings.toml)
+### TOML 配置 (.astra-settings/settings.toml)
 
 推荐用于新项目的格式：
 
@@ -292,7 +292,7 @@ sync_interval = 30000
 
 插件自动按以下顺序搜索配置文件：
 
-1. **TOML 配置**：在当前目录或父目录中查找 `.astro-settings/settings.toml`
+1. **TOML 配置**：在当前目录或父目录中查找 `.astra-settings/settings.toml`
 2. **VSCode SFTP 配置**：在当前目录或父目录中查找 `.vscode/sftp.json`
 3. **传统 Astra 配置**：在当前目录中查找 `astra.json`
 

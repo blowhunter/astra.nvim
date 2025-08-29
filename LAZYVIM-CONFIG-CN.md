@@ -624,7 +624,7 @@ run_tests() {
 create_example_config() {
     log_info "创建示例配置..."
     
-    local config_dir="$ASTRA_ROOT_DIR/.astro-settings"
+    local config_dir="$ASTRA_ROOT_DIR/.astra-settings"
     mkdir -p "$config_dir"
     
     cat > "$config_dir/settings.toml" << 'CONFIG_EOF'
@@ -659,7 +659,7 @@ main() {
     
     log_success "Astra.nvim 开发环境设置完成！"
     log_info "下一步："
-    log_info "1. 编辑配置文件: $ASTRA_ROOT_DIR/.astro-settings/settings.toml"
+    log_info "1. 编辑配置文件: $ASTRA_ROOT_DIR/.astra-settings/settings.toml"
     log_info "2. 在 LazyVim 中配置插件路径"
     log_info "3. 启动 Neovim 并测试功能"
 }
@@ -815,7 +815,7 @@ connection = {
 ### 1. 项目结构
 ```
 your-project/
-├── .astro-settings/
+├── .astra-settings/
 │   └── settings.toml         # TOML 配置
 ├── .vscode/
 │   └── sftp.json            # VSCode SFTP 配置（可选）

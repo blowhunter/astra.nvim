@@ -168,11 +168,11 @@ pub struct SyncResult {
 插件支持多种配置文件格式，具有自动发现功能：
 
 ### 优先级顺序
-1. **TOML 配置**（`.astro-settings/settings.toml`）
+1. **TOML 配置**（`.astra-settings/settings.toml`）
 2. **VSCode SFTP 配置**（`.vscode/sftp.json`）  
 3. **传统 Astra 配置**（`astra.json`）
 
-### TOML 配置 (.astro-settings/settings.toml)
+### TOML 配置 (.astra-settings/settings.toml)
 ```toml
 [sftp]
 host = "server.com"
