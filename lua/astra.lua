@@ -271,6 +271,14 @@ function M:initialize_commands()
 			vim.notify("Astra: Failed to refresh configuration", vim.log.levels.ERROR)
 		end
 	end, { desc = "Refresh cached configuration" })
+
+	vim.api.nvim_create_user_command("AstraVersion", function()
+		M:show_version()
+	end, { desc = "Show Astra.nvim version information" })
+
+	vim.api.nvim_create_user_command("AstraCheckUpdate", function()
+		M:check_for_updates()
+	end, { desc = "Check for Astra.nvim updates" })
 end
 
 function M:init_config()
@@ -404,6 +412,67 @@ function M:stop_auto_sync()
 		M.auto_sync_timer = nil
 		vim.notify("Astra: Auto sync stopped")
 	end
+end
+
+function M:show_version()
+	local cmd = string.format("cd %s && %s version", self.core_path, self.binary_path)
+	
+	local output = vim.fn.system(cmd)
+	
+	if vim.v.shell_error == 0 then
+		-- Parse and display version information
+		local version_info = self:parse_version_output(output)
+		if version_info then
+			vim.notify("Astra.nvim Version Information:\n" .. version_info, vim.log.levels.INFO, { title = "Astra.nvim" })
+		else
+			vim.notify("Astra: Version information\n" .. output, vim.log.levels.INFO, { title = "Astra.nvim" })
+		end
+	else
+		vim.notify("Astra: Failed to get version information", vim.log.levels.ERROR)
+	end
+end
+
+function M:check_for_updates()
+	local cmd = string.format("cd %s && %s check-update", self.core_path, self.binary_path)
+	
+	vim.notify("Astra: Checking for updates...", vim.log.levels.INFO)
+	
+	-- Run update check in background
+	vim.fn.jobstart(cmd, {
+		stdout_buffered = true,
+		stderr_buffered = true,
+		on_stdout = function(_, data)
+			if data and #data > 0 then
+				local output = table.concat(data, "\n")
+				vim.notify("Astra Update Check:\n" .. output, vim.log.levels.INFO, { title = "Astra.nvim" })
+			end
+		end,
+		on_stderr = function(_, data)
+			if data and #data > 0 then
+				local error_output = table.concat(data, "\n")
+				vim.notify("Astra: Update check error\n" .. error_output, vim.log.levels.ERROR)
+			end
+		end,
+		on_exit = function(_, exit_code)
+			if exit_code ~= 0 then
+				vim.notify("Astra: Update check failed", vim.log.levels.ERROR)
+			end
+		end,
+	})
+end
+
+function M:parse_version_output(output)
+	-- Parse version output for better display
+	local lines = vim.split(output, "\n")
+	local result = {}
+	
+	for _, line in ipairs(lines) do
+		if line:match("^Version:") or line:match("^Build Date:") or line:match("^Rust Version:") then
+			table.insert(result, line)
+		end
+	end
+	
+	return #result > 0 and table.concat(result, "\n") or nil
 end
 
 return M

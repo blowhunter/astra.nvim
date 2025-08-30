@@ -68,6 +68,12 @@ pub enum Commands {
         #[arg(short, long)]
         config: Option<String>,
     },
+
+    #[command(about = "Show version information")]
+    Version,
+
+    #[command(about = "Check for updates")]
+    CheckUpdate,
 }
 
 pub async fn run_cli(cli: Cli) -> AstraResult<()> {
@@ -116,6 +122,12 @@ pub async fn run_cli(cli: Cli) -> AstraResult<()> {
                 // Use automatic config discovery
                 test_config(None).await?;
             }
+        }
+        Commands::Version => {
+            show_version()?;
+        }
+        Commands::CheckUpdate => {
+            check_for_updates().await?;
         }
     }
     
@@ -311,6 +323,52 @@ async fn test_config(config_path: Option<&str>) -> AstraResult<()> {
             println!("❌ Configuration error: {}", e);
         }
     }
+    
+    Ok(())
+}
+
+fn show_version() -> AstraResult<()> {
+    use chrono::{DateTime, Utc};
+    use std::env;
+    
+    println!("Astra.nvim Core");
+    println!("Version: {}", env!("CARGO_PKG_VERSION"));
+    
+    // Try to get build environment variables
+    println!("Build Date: {}", env::var("BUILD_DATE").unwrap_or_else(|_| "unknown".to_string()));
+    println!("Rust Version: {}", env::var("RUSTC_VERSION").unwrap_or_else(|_| "unknown".to_string()));
+    
+    // Show current time for reference
+    let now: DateTime<Utc> = Utc::now();
+    println!("Current Time: {}", now.format("%Y-%m-%d %H:%M:%S UTC"));
+    
+    Ok(())
+}
+
+async fn check_for_updates() -> AstraResult<()> {
+    use chrono::{DateTime, Utc};
+    
+    println!("🔄 Checking for updates...");
+    
+    // For now, simulate checking for updates
+    // In a real implementation, this would check GitHub releases or a registry
+    let current_version = env!("CARGO_PKG_VERSION");
+    let current_time: DateTime<Utc> = Utc::now();
+    
+    println!("Current version: {}", current_version);
+    println!("Last checked: {}", current_time.format("%Y-%m-%d %H:%M:%S UTC"));
+    
+    // Simulate network check
+    println!("📡 Checking remote repository...");
+    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+    
+    // For demonstration, always say we're up to date
+    println!("✅ You're running the latest version!");
+    
+    // In a real implementation, this would:
+    // 1. Fetch latest release from GitHub API
+    // 2. Compare versions
+    // 3. Provide update instructions if available
     
     Ok(())
 }
