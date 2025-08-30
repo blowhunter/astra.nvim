@@ -134,12 +134,35 @@ function M:get_remote_path(local_file_path)
 		local_file_path = vim.fn.fnamemodify(local_file_path, ":p")
 	end
 	
+	-- Normalize paths for comparison
+	local normalized_local_path = config.local_path:gsub("/+$", "")
+	local normalized_file_path = local_file_path:gsub("/+$", "")
+	
 	-- Calculate relative path from local_path
-	local relative_path = local_file_path:gsub("^" .. config.local_path .. "/", "")
+	local relative_path = ""
+	
+	-- Check if the file is directly under the local_path
+	if normalized_file_path:match("^" .. normalized_local_path .. "/") then
+		relative_path = normalized_file_path:gsub("^" .. normalized_local_path .. "/", "")
+	elseif normalized_file_path == normalized_local_path then
+		-- File is exactly the local_path directory itself
+		relative_path = ""
+	else
+		-- File is not under local_path, use filename only
+		relative_path = vim.fn.fnamemodify(normalized_file_path, ":t")
+	end
 	
 	-- Remove leading slash if present
 	if relative_path:match("^/") then
 		relative_path = relative_path:sub(2)
+	end
+	
+	-- If relative_path is empty, use a default name
+	if relative_path == "" then
+		relative_path = vim.fn.fnamemodify(normalized_file_path, ":t")
+		if relative_path == "" then
+			relative_path = "file"
+		end
 	end
 	
 	return config.remote_path .. "/" .. relative_path
@@ -153,12 +176,35 @@ function M:get_local_path(remote_file_path)
 		return nil
 	end
 	
+	-- Normalize paths for comparison
+	local normalized_remote_path = config.remote_path:gsub("/+$", "")
+	local normalized_file_path = remote_file_path:gsub("/+$", "")
+	
 	-- Calculate relative path from remote_path
-	local relative_path = remote_file_path:gsub("^" .. config.remote_path .. "/", "")
+	local relative_path = ""
+	
+	-- Check if the file is directly under the remote_path
+	if normalized_file_path:match("^" .. normalized_remote_path .. "/") then
+		relative_path = normalized_file_path:gsub("^" .. normalized_remote_path .. "/", "")
+	elseif normalized_file_path == normalized_remote_path then
+		-- File is exactly the remote_path directory itself
+		relative_path = ""
+	else
+		-- File is not under remote_path, use filename only
+		relative_path = vim.fn.fnamemodify(normalized_file_path, ":t")
+	end
 	
 	-- Remove leading slash if present
 	if relative_path:match("^/") then
 		relative_path = relative_path:sub(2)
+	end
+	
+	-- If relative_path is empty, use a default name
+	if relative_path == "" then
+		relative_path = vim.fn.fnamemodify(normalized_file_path, ":t")
+		if relative_path == "" then
+			relative_path = "file"
+		end
 	end
 	
 	return config.local_path .. "/" .. relative_path
