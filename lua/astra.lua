@@ -9,6 +9,7 @@ M.last_config_check = 0
 function M.setup(opts)
 	opts = opts or {}
 
+	-- Default configuration with all sync features disabled
 	M.config = vim.tbl_extend("force", {
 		host = "",
 		port = 22,
@@ -23,16 +24,24 @@ function M.setup(opts)
 	}, opts)
 
 	-- Initialize with automatic configuration discovery
-	M:discover_configuration()
+	local config = M:discover_configuration()
 
 	M:initialize_commands()
 
-	if M.config.auto_sync then
-		M:start_auto_sync()
-	end
-
-	if M.config.sync_on_save then
-		M:setup_autocmds()
+	-- Only enable sync features if configuration is available
+	if config then
+		-- Enable sync features from configuration
+		if config.auto_sync then
+			M:start_auto_sync()
+		end
+		
+		if config.sync_on_save then
+			M:setup_autocmds()
+		end
+		
+		vim.notify("Astra: Configuration loaded successfully", vim.log.levels.INFO)
+	else
+		vim.notify("Astra: No configuration found. Use :AstraInit to create configuration", vim.log.levels.INFO)
 	end
 end
 
@@ -43,6 +52,18 @@ function M:discover_configuration()
 	-- Cache configuration for 30 seconds to avoid frequent checks
 	if M.config_cache and (current_time - M.last_config_check) < 30 then
 		return M.config_cache
+	end
+
+	-- Check if any configuration file exists
+	local cwd = vim.fn.getcwd()
+	local has_config = vim.loop.fs_stat(cwd .. "/.astra-settings/settings.toml") ~= nil
+		or vim.loop.fs_stat(cwd .. "/.vscode/sftp.json") ~= nil
+		or vim.loop.fs_stat(cwd .. "/astra.json") ~= nil
+
+	if not has_config then
+		M.config_cache = nil
+		M.last_config_check = current_time
+		return nil
 	end
 
 	local cmd = string.format("cd %s && %s config-test 2>/dev/null", self.core_path, self.binary_path)
@@ -68,17 +89,9 @@ function M:discover_configuration()
 		end
 	end
 	
-	-- Fallback to config file check
-	local cwd = vim.fn.getcwd()
-	local has_config = vim.loop.fs_stat(cwd .. "/.astra-settings/settings.toml") ~= nil
-		or vim.loop.fs_stat(cwd .. "/.vscode/sftp.json") ~= nil
-		or vim.loop.fs_stat(cwd .. "/astra.json") ~= nil
-
-	if not has_config then
-		vim.notify("Astra: No configuration file found. Please run :AstraInit", vim.log.levels.ERROR)
-		return nil
-	end
-
+	-- No valid configuration found
+	M.config_cache = nil
+	M.last_config_check = current_time
 	return nil
 end
 
@@ -103,6 +116,11 @@ function M:parse_config_output(output)
 	config.remote_path = output:match("Remote path: ([^\n]+)") or ""
 	-- Extract local path
 	config.local_path = output:match("Local path: ([^\n]+)") or vim.loop.cwd()
+	-- Extract sync options
+	config.auto_sync = output:match("Auto sync: ([^\n]+)") == "true"
+	config.sync_on_save = output:match("Sync on save: ([^\n]+)") == "true"
+	local sync_interval_str = output:match("Sync interval: ([^\n]+)") or "30000"
+	config.sync_interval = tonumber(sync_interval_str) or 30000
 	
 	return config
 end
@@ -337,13 +355,32 @@ function M:init_config()
 		-- Refresh configuration cache after init
 		M.config_cache = nil
 		M.last_config_check = 0
-		M:discover_configuration()
+		local config = M:discover_configuration()
+		
+		if config then
+			-- Enable sync features from the new configuration
+			if config.auto_sync then
+				M:start_auto_sync()
+			end
+			
+			if config.sync_on_save then
+				M:setup_autocmds()
+			end
+			
+			vim.notify("Astra: Configuration loaded and sync features enabled", vim.log.levels.INFO)
+		end
 	else
 		vim.notify("Astra: Failed to initialize configuration", vim.log.levels.ERROR)
 	end
 end
 
 function M:sync_files(mode)
+	local config = self:discover_configuration()
+	if not config then
+		vim.notify("Astra: No configuration found. Please run :AstraInit to create configuration", vim.log.levels.ERROR)
+		return
+	end
+	
 	local cmd = string.format("cd %s && %s sync --mode %s", self.core_path, self.binary_path, mode)
 
 	vim.fn.system(cmd)
@@ -356,6 +393,12 @@ function M:sync_files(mode)
 end
 
 function M:check_status()
+	local config = self:discover_configuration()
+	if not config then
+		vim.notify("Astra: No configuration found. Please run :AstraInit to create configuration", vim.log.levels.ERROR)
+		return
+	end
+	
 	local cmd = string.format("cd %s && %s status", self.core_path, self.binary_path)
 
 	local output = vim.fn.system(cmd)
@@ -368,6 +411,12 @@ function M:check_status()
 end
 
 function M:upload_file(local_path, remote_path)
+	local config = self:discover_configuration()
+	if not config then
+		vim.notify("Astra: No configuration found. Please run :AstraInit to create configuration", vim.log.levels.ERROR)
+		return
+	end
+	
 	-- Ensure local_path is absolute
 	if not local_path:match("^/") then
 		local_path = vim.fn.fnamemodify(local_path, ":p")
@@ -391,6 +440,12 @@ function M:upload_file(local_path, remote_path)
 end
 
 function M:download_file(remote_path, local_path)
+	local config = self:discover_configuration()
+	if not config then
+		vim.notify("Astra: No configuration found. Please run :AstraInit to create configuration", vim.log.levels.ERROR)
+		return
+	end
+	
 	-- Ensure local_path is absolute
 	if not local_path:match("^/") then
 		local_path = vim.fn.fnamemodify(local_path, ":p")
@@ -439,6 +494,12 @@ function M:setup_autocmds()
 end
 
 function M:sync_single_file(file_path)
+	local config = self:discover_configuration()
+	if not config then
+		vim.notify("Astra: No configuration found. Please run :AstraInit to create configuration", vim.log.levels.ERROR)
+		return
+	end
+	
 	-- Ensure file_path is absolute
 	if not file_path:match("^/") then
 		file_path = vim.fn.fnamemodify(file_path, ":p")

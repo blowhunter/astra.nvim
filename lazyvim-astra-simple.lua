@@ -100,6 +100,7 @@ return {
 
     -- 简洁的键位映射
     local keys = {
+      { "<leader>ai", "<cmd>AstraInit<cr>", desc = "Astra 初始化配置" },
       { "<leader>au", "<cmd>AstraUploadCurrent<cr>", desc = "Astra 上传当前文件" },
       { "<leader>as", "<cmd>AstraSync auto<cr>", desc = "Astra 同步项目" },
       { "<leader>aq", "<cmd>AstraQuickSync<cr>", desc = "Astra 快速同步" },
