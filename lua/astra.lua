@@ -166,8 +166,35 @@ function M:get_remote_path(local_file_path)
 		-- File is exactly the local_path directory itself
 		relative_path = ""
 	else
-		-- File is not under local_path, use filename only
-		relative_path = vim.fn.fnamemodify(normalized_file_path, ":t")
+		-- File is not under local_path, try to find common parent directory
+		-- This handles cases where the file is in a subdirectory of the project
+		local file_parts = {}
+		for part in string.gmatch(normalized_file_path, "([^/]+)") do
+			table.insert(file_parts, part)
+		end
+		
+		local local_parts = {}
+		for part in string.gmatch(normalized_local_path, "([^/]+)") do
+			table.insert(local_parts, part)
+		end
+		
+		-- Find common prefix
+		local common_count = 0
+		for i = 1, math.min(#file_parts, #local_parts) do
+			if file_parts[i] == local_parts[i] then
+				common_count = i
+			else
+				break
+			end
+		end
+		
+		if common_count > 0 then
+			-- Build relative path from common parent
+			relative_path = table.concat(file_parts, "/", common_count + 1)
+		else
+			-- No common parent, use filename only as fallback
+			relative_path = vim.fn.fnamemodify(normalized_file_path, ":t")
+		end
 	end
 	
 	-- Remove leading slash if present
@@ -208,8 +235,35 @@ function M:get_local_path(remote_file_path)
 		-- File is exactly the remote_path directory itself
 		relative_path = ""
 	else
-		-- File is not under remote_path, use filename only
-		relative_path = vim.fn.fnamemodify(normalized_file_path, ":t")
+		-- File is not under remote_path, try to find common parent directory
+		-- This handles cases where the file is in a subdirectory of the remote project
+		local file_parts = {}
+		for part in string.gmatch(normalized_file_path, "([^/]+)") do
+			table.insert(file_parts, part)
+		end
+		
+		local remote_parts = {}
+		for part in string.gmatch(normalized_remote_path, "([^/]+)") do
+			table.insert(remote_parts, part)
+		end
+		
+		-- Find common prefix
+		local common_count = 0
+		for i = 1, math.min(#file_parts, #remote_parts) do
+			if file_parts[i] == remote_parts[i] then
+				common_count = i
+			else
+				break
+			end
+		end
+		
+		if common_count > 0 then
+			-- Build relative path from common parent
+			relative_path = table.concat(file_parts, "/", common_count + 1)
+		else
+			-- No common parent, use filename only as fallback
+			relative_path = vim.fn.fnamemodify(normalized_file_path, ":t")
+		end
 	end
 	
 	-- Remove leading slash if present

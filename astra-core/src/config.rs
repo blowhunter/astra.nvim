@@ -16,8 +16,8 @@ impl ConfigReader {
         }
     }
 
-    /// Expand ~ to home directory in a path
-    fn expand_tilde(path: &str) -> String {
+    /// Expand ~ to local home directory in a path (for local paths)
+    fn expand_tilde_local(path: &str) -> String {
         if let Some(rest) = path.strip_prefix("~/") {
             // Handle ~/path
             if let Ok(home_dir) = env::var("HOME") {
@@ -39,21 +39,71 @@ impl ConfigReader {
         }
     }
 
+    /// Expand ~ to remote home directory in a path (for remote paths)
+    /// Convert ~ to /home/username format for remote paths
+    fn expand_tilde_remote(path: &str, username: &str) -> String {
+        if let Some(rest) = path.strip_prefix("~/") {
+            // Convert ~/path to /home/username/path
+            format!("/home/{}/{}", username, rest)
+        } else if path == "~" {
+            // Convert ~ to /home/username
+            format!("/home/{}", username)
+        } else {
+            // No tilde, return as-is (absolute paths remain unchanged)
+            path.to_string()
+        }
+    }
+
     pub fn read_config(&self) -> AstraResult<SftpConfig> {
         // Try to read configurations in this order:
         // 1. .astra-settings/settings.toml
         // 2. .vscode/sftp.json
         // 3. astra.json (existing format)
-        
+
         // If base_dir is already a file path (not a directory), treat it as a config file
         if self.base_dir.ends_with(".json") || self.base_dir.ends_with(".toml") {
             if self.base_dir.ends_with(".toml") {
                 return self.read_astra_toml_config_from_path(&self.base_dir);
             } else {
+                // For .json files, try to detect if it's VSCode SFTP config or Legacy Astra config
+                let content = fs::read_to_string(&self.base_dir).map_err(|e| {
+                    AstraError::ConfigurationError(format!("Failed to read config file: {}", e))
+                })?;
+
+                // Try to parse as VSCode SFTP config first
+                if let Ok(vscode_config) = serde_json::from_str::<VsCodeSftpConfig>(&content) {
+                    if vscode_config.protocol == "sftp" || vscode_config.protocol == "ftp" {
+                        let expanded_config: SftpConfig = vscode_config.into();
+                        let mut final_config = expanded_config.clone();
+
+                        // Expand ~ in paths
+                        if let Some(private_key_path) = &final_config.private_key_path {
+                            if private_key_path.starts_with("~") {
+                                final_config.private_key_path =
+                                    Some(Self::expand_tilde_local(private_key_path));
+                            }
+                        }
+                        if final_config.local_path.starts_with("~") {
+                            final_config.local_path =
+                                Self::expand_tilde_local(&final_config.local_path);
+                        }
+                        // Convert ~ to /home/username format for remote paths
+                        if final_config.remote_path.starts_with("~") {
+                            final_config.remote_path = Self::expand_tilde_remote(
+                                &final_config.remote_path,
+                                &final_config.username,
+                            );
+                        }
+
+                        return Ok(final_config);
+                    }
+                }
+
+                // Fall back to Legacy Astra config
                 return self.read_legacy_astra_config_from_path(&self.base_dir);
             }
         }
-        
+
         // First, try to use project root discovery for automatic config finding
         if let Some(project_root) = self.find_project_root() {
             let project_reader = ConfigReader::new(Some(project_root));
@@ -81,9 +131,9 @@ impl ConfigReader {
             return Ok(config);
         }
 
-        return Err(AstraError::ConfigurationError(
+        Err(AstraError::ConfigurationError(
             "No valid configuration file found".to_string(),
-        ));
+        ))
     }
 
     fn read_astra_toml_config(&self) -> AstraResult<SftpConfig> {
@@ -109,11 +159,18 @@ impl ConfigReader {
         // Expand ~ in paths
         let mut expanded_config = config.clone();
         if let Some(private_key_path) = &expanded_config.sftp.private_key_path {
-            expanded_config.sftp.private_key_path = Some(Self::expand_tilde(private_key_path));
+            expanded_config.sftp.private_key_path =
+                Some(Self::expand_tilde_local(private_key_path));
         }
         if let Some(local_path) = &expanded_config.sftp.local_path {
-            expanded_config.sftp.local_path = Some(Self::expand_tilde(local_path));
+            expanded_config.sftp.local_path = Some(Self::expand_tilde_local(local_path));
         }
+        // remote_path is required in TOML config, not optional
+        // Convert ~ to /home/username format for remote paths
+        expanded_config.sftp.remote_path = Self::expand_tilde_remote(
+            &expanded_config.sftp.remote_path,
+            &expanded_config.sftp.username,
+        );
 
         Ok(expanded_config.into())
     }
@@ -145,14 +202,19 @@ impl ConfigReader {
         // Expand ~ in paths and convert to SftpConfig
         let expanded_config: SftpConfig = config.into();
         let mut final_config = expanded_config.clone();
-        
+
         if let Some(private_key_path) = &final_config.private_key_path {
             if private_key_path.starts_with("~") {
-                final_config.private_key_path = Some(Self::expand_tilde(private_key_path));
+                final_config.private_key_path = Some(Self::expand_tilde_local(private_key_path));
             }
         }
         if final_config.local_path.starts_with("~") {
-            final_config.local_path = Self::expand_tilde(&final_config.local_path);
+            final_config.local_path = Self::expand_tilde_local(&final_config.local_path);
+        }
+        // Convert ~ to /home/username format for remote paths
+        if final_config.remote_path.starts_with("~") {
+            final_config.remote_path =
+                Self::expand_tilde_remote(&final_config.remote_path, &final_config.username);
         }
 
         Ok(final_config)
@@ -181,11 +243,15 @@ impl ConfigReader {
         // Expand ~ in paths
         if let Some(private_key_path) = &config.private_key_path {
             if private_key_path.starts_with("~") {
-                config.private_key_path = Some(Self::expand_tilde(private_key_path));
+                config.private_key_path = Some(Self::expand_tilde_local(private_key_path));
             }
         }
         if config.local_path.starts_with("~") {
-            config.local_path = Self::expand_tilde(&config.local_path);
+            config.local_path = Self::expand_tilde_local(&config.local_path);
+        }
+        // Convert ~ to /home/username format for remote paths
+        if config.remote_path.starts_with("~") {
+            config.remote_path = Self::expand_tilde_remote(&config.remote_path, &config.username);
         }
 
         Ok(config)
@@ -416,4 +482,3 @@ remote_path = "/remote/test"
         assert!(result.is_err());
     }
 }
-

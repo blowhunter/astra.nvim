@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  astra-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    volumes:
+      - .:/app
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/app/target
+    environment:
+      - RUST_LOG=info
+      - USER_ID=${USER_ID:-1000}
+      - GROUP_ID=${GROUP_ID:-1000}
+    working_dir: /app
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+
+  astra-runtime:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./test-config:/app/config:ro
+      - ./test-files:/app/files:rw
+    environment:
+      - RUST_LOG=info
+    working_dir: /app
+    command: ["astra-core", "--help"]
+
+  astra-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    volumes:
+      - .:/app
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/app/target
+    environment:
+      - RUST_LOG=info
+    working_dir: /app
+    command: ["make", "check"]
+
+volumes:
+  cargo-cache:
+  target-cache:

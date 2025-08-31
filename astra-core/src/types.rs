@@ -1,6 +1,6 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SftpConfig {
@@ -79,9 +79,11 @@ pub struct VsCodeSftpConfig {
     pub port: u16,
     pub secure: Option<bool>,
     pub username: String,
-    pub remotePath: String,
+    #[serde(rename = "remotePath")]
+    pub remote_path: String,
     pub password: Option<String>,
-    pub uploadOnSave: Option<bool>,
+    #[serde(rename = "uploadOnSave")]
+    pub upload_on_save: Option<bool>,
 }
 
 impl From<AstraTomlConfig> for SftpConfig {
@@ -93,7 +95,12 @@ impl From<AstraTomlConfig> for SftpConfig {
             password: config.sftp.password,
             private_key_path: config.sftp.private_key_path,
             remote_path: config.sftp.remote_path,
-            local_path: config.sftp.local_path.unwrap_or_else(|| std::env::current_dir().unwrap().to_string_lossy().to_string()),
+            local_path: config.sftp.local_path.unwrap_or_else(|| {
+                std::env::current_dir()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string()
+            }),
         }
     }
 }
@@ -106,8 +113,11 @@ impl From<VsCodeSftpConfig> for SftpConfig {
             username: config.username,
             password: config.password,
             private_key_path: None,
-            remote_path: config.remotePath,
-            local_path: std::env::current_dir().unwrap().to_string_lossy().to_string(),
+            remote_path: config.remote_path,
+            local_path: std::env::current_dir()
+                .unwrap()
+                .to_string_lossy()
+                .to_string(),
         }
     }
 }

@@ -1,21 +1,21 @@
-pub mod types;
-pub mod error;
-pub mod sftp;
 pub mod cli;
 pub mod config;
+pub mod error;
+pub mod sftp;
+pub mod types;
 
-#[cfg(test)]
-mod types_tests;
-#[cfg(test)]
-mod sftp_tests;
 #[cfg(test)]
 mod cli_tests;
 #[cfg(test)]
 mod integration_tests;
+#[cfg(test)]
+mod sftp_tests;
+#[cfg(test)]
+mod types_tests;
 
-use cli::{run_cli, Cli};
-use clap::Parser;
 use crate::error::AstraResult;
+use clap::Parser;
+use cli::{run_cli, Cli};
 
 #[tokio::main]
 async fn main() -> AstraResult<()> {

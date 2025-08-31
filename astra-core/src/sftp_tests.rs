@@ -1,17 +1,17 @@
 #[cfg(test)]
 mod tests {
-    use crate::types::SftpConfig;
     use crate::sftp::SftpClient;
-    use tempfile::TempDir;
+    use crate::types::SftpConfig;
     use std::fs;
-    
+    use tempfile::TempDir;
+
     #[tokio::test]
     async fn test_local_file_listing() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         fs::write(temp_dir.path().join("file1.txt"), "content1").unwrap();
         fs::write(temp_dir.path().join("file2.txt"), "content2").unwrap();
-        
+
         let config = SftpConfig {
             host: "test.com".to_string(),
             port: 22,
@@ -21,9 +21,9 @@ mod tests {
             remote_path: "/remote".to_string(),
             local_path: temp_dir.path().to_str().unwrap().to_string(),
         };
-        
+
         let client = SftpClient::new(config);
-        
+
         match client {
             Err(_) => {
                 println!("Connection failed (expected in test environment)");
@@ -34,13 +34,13 @@ mod tests {
             }
         }
     }
-    
+
     #[test]
     fn test_file_checksum_calculation() {
         let temp_dir = TempDir::new().unwrap();
         let test_file = temp_dir.path().join("test.txt");
         fs::write(&test_file, "test content").unwrap();
-        
+
         let config = SftpConfig {
             host: "test.com".to_string(),
             port: 22,
@@ -50,9 +50,9 @@ mod tests {
             remote_path: "/remote".to_string(),
             local_path: temp_dir.path().to_str().unwrap().to_string(),
         };
-        
+
         let client = SftpClient::new(config);
-        
+
         match client {
             Err(_) => {
                 println!("Connection failed (expected in test environment)");

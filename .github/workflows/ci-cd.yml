@@ -1,0 +1,184 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        components: rustfmt, clippy
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Check formatting
+      run: make format-check
+    
+    - name: Run linter
+      run: make lint
+    
+    - name: Run tests
+      run: make test
+
+  build:
+    name: Build - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    needs: test
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Setup cross-compilation (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        rustup target add x86_64-unknown-linux-musl
+        sudo apt-get update
+        sudo apt-get install -y musl-tools musl-dev
+    
+    - name: Setup cross-compilation (macOS)
+      if: matrix.os == 'macos-latest'
+      run: rustup target add x86_64-apple-darwin
+    
+    - name: Setup cross-compilation (Windows)
+      if: matrix.os == 'windows-latest'
+      run: rustup target add x86_64-pc-windows-msvc
+    
+    - name: Build for Linux
+      if: matrix.os == 'ubuntu-latest'
+      run: make build-linux
+    
+    - name: Build for macOS
+      if: matrix.os == 'macos-latest'
+      run: make build-macos
+    
+    - name: Build for Windows
+      if: matrix.os == 'windows-latest'
+      run: make build-windows
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: binaries-${{ matrix.os }}
+        path: |
+          astra-core/target/x86_64-unknown-linux-musl/release/astra-core
+          astra-core/target/x86_64-apple-darwin/release/astra-core
+          astra-core/target/x86_64-pc-windows-msvc/release/astra-core.exe
+        retention-days: 30
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'release' && github.event.action == 'published'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+    
+    - name: Setup cross-compilation
+      run: make setup-cross-compilation
+    
+    - name: Download all build artifacts
+      uses: actions/download-artifact@v3
+    
+    - name: Create releases
+      run: make release-all
+    
+    - name: Upload Release Assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          releases/linux/astra-core-linux-x86_64.tar.gz
+          releases/macos/astra-core-macos-x86_64.tar.gz
+          releases/windows/astra-core-windows-x86_64.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Login to DockerHub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: astranvim/astra-core
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
