@@ -1,8 +1,0 @@
-{
-  "host": "127.0.0.1",
-  "port": 22,
-  "username": "test",
-  "password": "test",
-  "remote_path": "/tmp/test",
-  "local_path": "/tmp/local"
-}

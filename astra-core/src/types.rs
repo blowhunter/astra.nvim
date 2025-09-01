@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use crate::i18n::Language;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SftpConfig {
@@ -11,6 +12,7 @@ pub struct SftpConfig {
     pub private_key_path: Option<String>,
     pub remote_path: String,
     pub local_path: String,
+    pub language: Option<Language>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,6 +53,7 @@ pub enum OperationType {
 pub struct AstraTomlConfig {
     pub sftp: SftpTomlConfig,
     pub sync: Option<SyncTomlConfig>,
+    pub language: Option<Language>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,6 +104,7 @@ impl From<AstraTomlConfig> for SftpConfig {
                     .to_string_lossy()
                     .to_string()
             }),
+            language: config.language,
         }
     }
 }
@@ -118,6 +122,7 @@ impl From<VsCodeSftpConfig> for SftpConfig {
                 .unwrap()
                 .to_string_lossy()
                 .to_string(),
+            language: None,
         }
     }
 }

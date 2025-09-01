@@ -150,6 +150,7 @@ pub async fn run_cli(cli: Cli) -> AstraResult<()> {
 }
 
 async fn init_config(config_path: &str) -> AstraResult<()> {
+    let language = crate::i18n::detect_language();
     let default_config = SftpConfig {
         host: "example.com".to_string(),
         port: 22,
@@ -162,21 +163,27 @@ async fn init_config(config_path: &str) -> AstraResult<()> {
             .to_str()
             .unwrap()
             .to_string(),
+        language: Some(language),
     };
 
     let config_json = serde_json::to_string_pretty(&default_config)?;
     fs::write(config_path, config_json)?;
 
-    println!("Configuration initialized at {}", config_path);
+    let msg = crate::i18n::t_format("cli.config_initialized", &language, &[config_path]);
+    println!("{}", msg);
     Ok(())
 }
 
 async fn sync_files(config_path: Option<&str>, _mode: &str, files: &[String]) -> AstraResult<()> {
+    // Initialize i18n system
+    crate::i18n::init_translations();
+    
     let config_reader = match config_path {
         Some(path) => ConfigReader::new(Some(path.to_string())),
         None => ConfigReader::new(None), // Use automatic discovery
     };
     let config = config_reader.read_config()?;
+    let language = config.language.unwrap_or_else(crate::i18n::detect_language);
     let config_for_path = config.clone();
 
     let client = SftpClient::new(config)?;
@@ -214,11 +221,13 @@ async fn sync_files(config_path: Option<&str>, _mode: &str, files: &[String]) ->
                     sync_result
                         .files_transferred
                         .push(local_path.to_string_lossy().to_string());
-                    println!("✅ File uploaded successfully: {}", file_path);
+                    let msg = crate::i18n::t_format("cli.file_uploaded", &language, &[file_path]);
+                    println!("✅ {}", msg);
                 }
                 Err(e) => {
                     sync_result.errors.push(e.to_string());
-                    println!("❌ Failed to upload file {}: {}", file_path, e);
+                    let error_msg = crate::i18n::t("error.upload_failed", &language);
+                    println!("❌ {}: {} - {}", error_msg, file_path, e);
                 }
             }
         }
@@ -226,10 +235,10 @@ async fn sync_files(config_path: Option<&str>, _mode: &str, files: &[String]) ->
         // Update success status based on errors
         if !sync_result.errors.is_empty() {
             sync_result.success = false;
-            sync_result.message = format!(
-                "File sync completed with {} errors",
-                sync_result.errors.len()
-            );
+            let error_count = sync_result.errors.len().to_string();
+            sync_result.message = crate::i18n::t_format("cli.sync_failed", &language, &[&error_count]);
+        } else {
+            sync_result.message = crate::i18n::t("cli.sync_complete", &language);
         }
 
         let result_json = serde_json::to_string_pretty(&sync_result)?;
@@ -240,7 +249,7 @@ async fn sync_files(config_path: Option<&str>, _mode: &str, files: &[String]) ->
 
         let mut sync_result = SyncResult {
             success: true,
-            message: "Sync completed successfully".to_string(),
+            message: crate::i18n::t("cli.sync_complete", &language),
             files_transferred: Vec::new(),
             files_skipped: Vec::new(),
             errors: Vec::new(),
@@ -249,11 +258,10 @@ async fn sync_files(config_path: Option<&str>, _mode: &str, files: &[String]) ->
         for operation in &operations {
             match operation.operation_type {
                 crate::types::OperationType::Upload => {
-                    println!(
-                        "Uploading: {} -> {}",
-                        operation.local_path.display(),
-                        operation.remote_path.display()
-                    );
+                    let local_path = operation.local_path.display().to_string();
+                    let remote_path = operation.remote_path.display().to_string();
+                    let msg = crate::i18n::t_format("cli.upload_operation", &language, &[&local_path, &remote_path]);
+                    println!("{}", msg);
 
                     match client.upload_file(&operation.local_path, &operation.remote_path) {
                         Ok(_) => {
@@ -267,11 +275,10 @@ async fn sync_files(config_path: Option<&str>, _mode: &str, files: &[String]) ->
                     }
                 }
                 crate::types::OperationType::Download => {
-                    println!(
-                        "Downloading: {} -> {}",
-                        operation.remote_path.display(),
-                        operation.local_path.display()
-                    );
+                    let remote_path = operation.remote_path.display().to_string();
+                    let local_path = operation.local_path.display().to_string();
+                    let msg = crate::i18n::t_format("cli.download_operation", &language, &[&remote_path, &local_path]);
+                    println!("{}", msg);
 
                     match client.download_file(&operation.remote_path, &operation.local_path) {
                         Ok(_) => {
@@ -296,31 +303,35 @@ async fn sync_files(config_path: Option<&str>, _mode: &str, files: &[String]) ->
 }
 
 async fn check_status(config_path: Option<&str>) -> AstraResult<()> {
+    // Initialize i18n system
+    crate::i18n::init_translations();
+    
     let config_reader = match config_path {
         Some(path) => ConfigReader::new(Some(path.to_string())),
         None => ConfigReader::new(None), // Use automatic discovery
     };
     let config = config_reader.read_config()?;
+    let language = config.language.unwrap_or_else(crate::i18n::detect_language);
 
     let client = SftpClient::new(config)?;
     let operations = client.sync_incremental()?;
 
-    println!("Pending operations: {}", operations.len());
+    let pending_msg = crate::i18n::t_format("cli.pending_operations", &language, &[&operations.len().to_string()]);
+    println!("{}", pending_msg);
+    
     for operation in &operations {
         match operation.operation_type {
             crate::types::OperationType::Upload => {
-                println!(
-                    "  UPLOAD: {} -> {}",
-                    operation.local_path.display(),
-                    operation.remote_path.display()
-                );
+                let local_path = operation.local_path.display().to_string();
+                let remote_path = operation.remote_path.display().to_string();
+                let msg = crate::i18n::t_format("cli.upload_operation", &language, &[&local_path, &remote_path]);
+                println!("  {}", msg);
             }
             crate::types::OperationType::Download => {
-                println!(
-                    "  DOWNLOAD: {} -> {}",
-                    operation.remote_path.display(),
-                    operation.local_path.display()
-                );
+                let remote_path = operation.remote_path.display().to_string();
+                let local_path = operation.local_path.display().to_string();
+                let msg = crate::i18n::t_format("cli.download_operation", &language, &[&remote_path, &local_path]);
+                println!("  {}", msg);
             }
             _ => {}
         }
@@ -372,7 +383,12 @@ async fn download_single_file(
 }
 
 async fn test_config(config_path: Option<&str>) -> AstraResult<()> {
-    println!("Testing configuration discovery...");
+    // Initialize i18n system
+    crate::i18n::init_translations();
+    let language = crate::i18n::detect_language();
+    
+    let testing_msg = crate::i18n::t("cli.testing_config", &language);
+    println!("{}", testing_msg);
 
     let config_reader = match config_path {
         Some(path) => {
@@ -397,7 +413,8 @@ async fn test_config(config_path: Option<&str>) -> AstraResult<()> {
     // Try to read config
     match config_reader.read_config() {
         Ok(config) => {
-            println!("✅ Configuration loaded successfully!");
+            let success_msg = crate::i18n::t("cli.config_loaded", &language);
+            println!("✅ {}", success_msg);
             println!("Host: {}", config.host);
             println!("Port: {}", config.port);
             println!("Username: {}", config.username);
@@ -415,7 +432,8 @@ async fn test_config(config_path: Option<&str>) -> AstraResult<()> {
             }
         }
         Err(e) => {
-            println!("❌ Configuration error: {}", e);
+            let error_msg = crate::i18n::t_format("cli.config_error", &language, &[&e.to_string()]);
+            println!("❌ {}", error_msg);
         }
     }
 
@@ -426,7 +444,12 @@ fn show_version() -> AstraResult<()> {
     use chrono::{DateTime, Utc};
     use std::env;
 
-    println!("Astra.nvim Core");
+    // Initialize i18n system
+    crate::i18n::init_translations();
+    let language = crate::i18n::detect_language();
+    
+    let version_info = crate::i18n::t("cli.version_info", &language);
+    println!("{}", version_info);
     println!("Version: {}", env!("CARGO_PKG_VERSION"));
 
     // Try to get build environment variables
@@ -449,7 +472,12 @@ fn show_version() -> AstraResult<()> {
 async fn check_for_updates() -> AstraResult<()> {
     use chrono::{DateTime, Utc};
 
-    println!("🔄 Checking for updates...");
+    // Initialize i18n system
+    crate::i18n::init_translations();
+    let language = crate::i18n::detect_language();
+
+    let checking_msg = crate::i18n::t("cli.checking_updates", &language);
+    println!("🔄 {}", checking_msg);
 
     // For now, simulate checking for updates
     // In a real implementation, this would check GitHub releases or a registry
@@ -467,7 +495,8 @@ async fn check_for_updates() -> AstraResult<()> {
     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
     // For demonstration, always say we're up to date
-    println!("✅ You're running the latest version!");
+    let up_to_date_msg = crate::i18n::t("cli.up_to_date", &language);
+    println!("✅ {}", up_to_date_msg);
 
     // In a real implementation, this would:
     // 1. Fetch latest release from GitHub API

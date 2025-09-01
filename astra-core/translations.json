@@ -1,0 +1,174 @@
+{
+  "messages": {
+    "common.welcome": {
+      "English": "Welcome to Astra.nvim",
+      "Chinese": "欢迎使用 Astra.nvim",
+      "Japanese": "Astra.nvim へようこそ",
+      "Korean": "Astra.nvim에 오신 것을 환영합니다",
+      "Spanish": "Bienvenido a Astra.nvim",
+      "French": "Bienvenue sur Astra.nvim",
+      "German": "Willkommen bei Astra.nvim",
+      "Russian": "Добро пожаловать в Astra.nvim"
+    },
+    "common.settings": {
+      "English": "Settings",
+      "Chinese": "设置",
+      "Japanese": "設定",
+      "Korean": "설정",
+      "Spanish": "Configuración",
+      "French": "Paramètres",
+      "German": "Einstellungen",
+      "Russian": "Настройки"
+    },
+    "common.language": {
+      "English": "Language",
+      "Chinese": "语言",
+      "Japanese": "言語",
+      "Korean": "언어",
+      "Spanish": "Idioma",
+      "French": "Langue",
+      "German": "Sprache",
+      "Russian": "Язык"
+    },
+    "cli.uploading_file": {
+      "English": "Uploading file: {0}",
+      "Chinese": "正在上传文件: {0}",
+      "Japanese": "ファイルをアップロード中: {0}",
+      "Korean": "파일 업로드 중: {0}",
+      "Spanish": "Subiendo archivo: {0}",
+      "French": "Téléchargement du fichier: {0}",
+      "German": "Datei wird hochgeladen: {0}",
+      "Russian": "Загрузка файла: {0}"
+    },
+    "cli.downloading_file": {
+      "English": "Downloading file: {0}",
+      "Chinese": "正在下载文件: {0}",
+      "Japanese": "ファイルをダウンロード中: {0}",
+      "Korean": "파일 다운로드 중: {0}",
+      "Spanish": "Descargando archivo: {0}",
+      "French": "Téléchargement du fichier: {0}",
+      "German": "Datei wird heruntergeladen: {0}",
+      "Russian": "Скачивание файла: {0}"
+    },
+    "cli.sync_complete": {
+      "English": "Synchronization complete",
+      "Chinese": "同步完成",
+      "Japanese": "同期完了",
+      "Korean": "동기화 완료",
+      "Spanish": "Sincronización completa",
+      "French": "Synchronisation terminée",
+      "German": "Synchronisation abgeschlossen",
+      "Russian": "Синхронизация завершена"
+    },
+    "cli.sync_failed": {
+      "English": "Synchronization failed",
+      "Chinese": "同步失败",
+      "Japanese": "同期に失敗しました",
+      "Korean": "동기화 실패",
+      "Spanish": "Sincronización fallida",
+      "French": "Échec de la synchronisation",
+      "German": "Synchronisation fehlgeschlagen",
+      "Russian": "Ошибка синхронизации"
+    },
+    "cli.no_files_changed": {
+      "English": "No files changed",
+      "Chinese": "没有文件更改",
+      "Japanese": "変更されたファイルはありません",
+      "Korean": "변경된 파일이 없습니다",
+      "Spanish": "No hay archivos modificados",
+      "French": "Aucun fichier modifié",
+      "German": "Keine Dateien geändert",
+      "Russian": "Нет измененных файлов"
+    },
+    "cli.pending_operations": {
+      "English": "Pending operations: {0}",
+      "Chinese": "待处理操作: {0}",
+      "Japanese": "保留中の操作: {0}",
+      "Korean": "보류 중인 작업: {0}",
+      "Spanish": "Operaciones pendientes: {0}",
+      "French": "Opérations en attente: {0}",
+      "German": "Ausstehende Vorgänge: {0}",
+      "Russian": "Ожидаемые операции: {0}"
+    },
+    "cli.upload_operation": {
+      "English": "UPLOAD: {0} -> {1}",
+      "Chinese": "上传: {0} -> {1}",
+      "Japanese": "アップロード: {0} -> {1}",
+      "Korean": "업로드: {0} -> {1}",
+      "Spanish": "SUBIR: {0} -> {1}",
+      "French": "TÉLÉCHARGER: {0} -> {1}",
+      "German": "HOCHLADEN: {0} -> {1}",
+      "Russian": "ЗАГРУЗИТЬ: {0} -> {1}"
+    },
+    "cli.download_operation": {
+      "English": "DOWNLOAD: {0} -> {1}",
+      "Chinese": "下载: {0} -> {1}",
+      "Japanese": "ダウンロード: {0} -> {1}",
+      "Korean": "다운로드: {0} -> {1}",
+      "Spanish": "DESCARGAR: {0} -> {1}",
+      "French": "TÉLÉCHARGER: {0} -> {1}",
+      "German": "HERUNTERLADEN: {0} -> {1}",
+      "Russian": "СКАЧАТЬ: {0} -> {1}"
+    },
+    "cli.testing_config": {
+      "English": "Testing configuration discovery...",
+      "Chinese": "正在测试配置发现...",
+      "Japanese": "設定発見をテスト中...",
+      "Korean": "구성 발견 테스트 중...",
+      "Spanish": "Probando descubrimiento de configuración...",
+      "French": "Test de découverte de configuration...",
+      "German": "Konfigurationserkennung wird getestet...",
+      "Russian": "Тестирование обнаружения конфигурации..."
+    },
+    "cli.config_loaded": {
+      "English": "Configuration loaded successfully!",
+      "Chinese": "配置加载成功！",
+      "Japanese": "設定が正常に読み込まれました！",
+      "Korean": "구성이 성공적으로 로드되었습니다!",
+      "Spanish": "¡Configuración cargada con éxito!",
+      "French": "Configuration chargée avec succès!",
+      "German": "Konfiguration erfolgreich geladen!",
+      "Russian": "Конфигурация успешно загружена!"
+    },
+    "cli.config_error": {
+      "English": "Configuration error: {0}",
+      "Chinese": "配置错误: {0}",
+      "Japanese": "設定エラー: {0}",
+      "Korean": "구성 오류: {0}",
+      "Spanish": "Error de configuración: {0}",
+      "French": "Erreur de configuration: {0}",
+      "German": "Konfigurationsfehler: {0}",
+      "Russian": "Ошибка конфигурации: {0}"
+    },
+    "cli.version_info": {
+      "English": "Astra.nvim Core",
+      "Chinese": "Astra.nvim 核心",
+      "Japanese": "Astra.nvim コア",
+      "Korean": "Astra.nvim 코어",
+      "Spanish": "Astra.nvim Core",
+      "French": "Astra.nvim Core",
+      "German": "Astra.nvim Core",
+      "Russian": "Astra.nvim Core"
+    },
+    "cli.checking_updates": {
+      "English": "Checking for updates...",
+      "Chinese": "正在检查更新...",
+      "Japanese": "更新を確認中...",
+      "Korean": "업데이트 확인 중...",
+      "Spanish": "Buscando actualizaciones...",
+      "French": "Vérification des mises à jour...",
+      "German": "Auf Updates prüfen...",
+      "Russian": "Проверка обновлений..."
+    },
+    "cli.up_to_date": {
+      "English": "You're running the latest version!",
+      "Chinese": "您正在运行最新版本！",
+      "Japanese": "最新バージョンを実行しています！",
+      "Korean": "최신 버전을 실행하고 있습니다!",
+      "Spanish": "¡Estás ejecutando la última versión!",
+      "French": "Vous exécutez la dernière version!",
+      "German": "Sie verwenden die neueste Version!",
+      "Russian": "Вы используете последнюю версию!"
+    }
+  }
+}

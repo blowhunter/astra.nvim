@@ -240,6 +240,11 @@ impl ConfigReader {
             AstraError::ConfigurationError(format!("Failed to parse legacy Astra config: {}", e))
         })?;
 
+        // Set default language if not specified
+        if config.language.is_none() {
+            config.language = Some(crate::i18n::detect_language());
+        }
+
         // Expand ~ in paths
         if let Some(private_key_path) = &config.private_key_path {
             if private_key_path.starts_with("~") {

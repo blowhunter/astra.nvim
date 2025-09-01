@@ -63,6 +63,7 @@ mod tests {
             private_key_path: None,
             remote_path: "/remote".to_string(),
             local_path: temp_dir.path().to_str().unwrap().to_string(),
+            language: None,
         };
 
         let config_json = serde_json::to_string_pretty(&config).unwrap();
