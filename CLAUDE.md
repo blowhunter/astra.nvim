@@ -2,6 +2,52 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Documentation Guidelines
+
+### 📝 Change Documentation Policy
+
+**重要说明：所有后续的说明性文字、变更记录、问题解决方案等都应该写入 `CHANGELOG.md` 文件，而不是创建单独的文档文件。**
+
+#### 何时更新 CHANGELOG.md：
+- **功能变更**：新增、修改或删除功能时
+- **问题修复**：修复bug或解决问题时
+- **配置变更**：配置文件格式或选项变更时
+- **架构调整**：代码结构或架构变更时
+- **性能优化**：重要的性能改进时
+- **文档更新**：重要文档更新时
+
+#### CHANGELOG.md 内容结构：
+- **版本号**：使用语义化版本号 (major.minor.patch)
+- **新增功能**：🌍 标记新功能
+- **技术改进**：🔧 标记技术变更
+- **问题修复**：🐛 标记修复的问题
+- **文件变更**：📦 标记文件变更
+- **测试覆盖**：🧪 标记测试情况
+- **使用示例**：📝 提供使用示例
+- **统计信息**：📊 提供变更统计
+
+#### 禁止创建的文件类型：
+- ❌ 临时解决方案文档 (如 `SSH-AUTH-FIX.md`)
+- ❌ 问题总结文档 (如 `SOLUTION-SUMMARY.md`)
+- ❌ 功能说明文档 (如 `CONFIG_MANAGEMENT.md`)
+- ❌ 故障排除文档 (如 `TROUBLESHOOTING.md`)
+- ❌ 重复的说明性文档
+
+#### 例外情况：
+- ✅ **CLAUDE.md**：项目指导文档（更新此文件）
+- ✅ **README.md**：项目主要说明文档
+- ✅ **CONTRIBUTING.md**：贡献指南
+- ✅ **特定功能文档**：如 `I18N_README.md`（复杂功能的详细说明）
+- ✅ **配置示例**：如 `example-config.toml`
+- ✅ **翻译文件**：如 `translations.json`
+
+#### 文档维护原则：
+1. **单一来源**：每个信息只在一个地方维护
+2. **时效性**：及时更新变更日志
+3. **简洁性**：避免重复和冗余信息
+4. **可追溯性**：所有变更都有记录
+5. **用户友好**：用户可以轻松找到需要的信息
+
 ## Project Overview
 
 Astra.nvim is a comprehensive Neovim plugin for SFTP-based file synchronization with incremental sync capabilities. Built with Rust for performance and Lua for Neovim integration.
@@ -198,7 +244,22 @@ sync_interval = 30000
   "port": 22,
   "username": "user",
   "password": "password",
+  "privateKeyPath": "/path/to/your/private_key_file",
   "remotePath": "/remote/directory",
+  "uploadOnSave": true
+}
+```
+
+**VSCode SFTP with private key authentication:**
+```json
+{
+  "name": "YourServerProfileName",
+  "host": "your_sftp_host_or_ip",
+  "protocol": "sftp",
+  "port": 22,
+  "username": "your_sftp_username",
+  "remotePath": "/path/to/your/remote/project",
+  "privateKeyPath": "/path/to/your/private_key_file",
   "uploadOnSave": true
 }
 ```
@@ -247,12 +308,14 @@ sync_interval = 30000
 3. Add CLI command in `cli.rs`
 4. Add Lua command wrapper in `astra.lua`
 5. Write tests for the new operation
+6. **Update CHANGELOG.md** with the new operation details
 
 ### Modifying Configuration
 1. Update `SftpConfig` struct in `types.rs`
 2. Update configuration validation in Lua frontend
 3. Update documentation and examples
 4. Add tests for new configuration options
+5. **Update CHANGELOG.md** with configuration changes
 
 ### Performance Optimization
 1. Profile existing operations with `cargo build --release`
@@ -260,3 +323,36 @@ sync_interval = 30000
 3. Optimize algorithmic complexity
 4. Add async operations where beneficial
 5. Test performance improvements
+6. **Update CHANGELOG.md** with performance improvements
+
+### Documentation Updates
+1. **ALWAYS update CHANGELOG.md** for any significant changes
+2. Update CLAUDE.md for architectural changes or new development guidelines
+3. Update README.md for user-facing changes
+4. **DO NOT create separate documentation files** for solutions or fixes
+5. Keep documentation concise and avoid redundancy
+
+## 📋 Documentation Requirements Checklist
+
+Before committing any changes, ensure you have:
+
+- [ ] **Updated CHANGELOG.md** with all changes
+- [ ] **Added appropriate tests** for new functionality
+- [ ] **Updated relevant documentation** (README.md, CLAUDE.md)
+- [ ] **Verified existing tests still pass**
+- [ ] **Avoided creating redundant documentation files**
+- [ ] **Followed the established documentation structure**
+
+### 🚫 Prohibited Documentation Patterns
+- Creating `*-FIX.md` files for problem solutions
+- Creating `SOLUTION-*.md` files for issue summaries  
+- Creating standalone documentation for temporary fixes
+- Duplicating information across multiple files
+- Creating documentation that will quickly become outdated
+
+### ✅ Preferred Documentation Patterns
+- Updating CHANGELOG.md with detailed change information
+- Adding inline code comments for complex logic
+- Updating existing documentation files with new information
+- Creating comprehensive test cases that serve as documentation
+- Using descriptive commit messages that reference the changelog

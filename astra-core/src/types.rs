@@ -85,6 +85,8 @@ pub struct VsCodeSftpConfig {
     #[serde(rename = "remotePath")]
     pub remote_path: String,
     pub password: Option<String>,
+    #[serde(rename = "privateKeyPath")]
+    pub private_key_path: Option<String>,
     #[serde(rename = "uploadOnSave")]
     pub upload_on_save: Option<bool>,
 }
@@ -116,7 +118,7 @@ impl From<VsCodeSftpConfig> for SftpConfig {
             port: config.port,
             username: config.username,
             password: config.password,
-            private_key_path: None,
+            private_key_path: config.private_key_path,
             remote_path: config.remote_path,
             local_path: std::env::current_dir()
                 .unwrap()
