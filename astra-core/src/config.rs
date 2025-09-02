@@ -40,14 +40,19 @@ impl ConfigReader {
     }
 
     /// Expand ~ to remote home directory in a path (for remote paths)
-    /// Convert ~ to /home/username format for remote paths
+    /// Convert ~ to appropriate home directory format for remote paths
     fn expand_tilde_remote(path: &str, username: &str) -> String {
         if let Some(rest) = path.strip_prefix("~/") {
-            // Convert ~/path to /home/username/path
-            format!("/home/{}/{}", username, rest)
+            // Convert ~/path to appropriate home directory/path
+            let home_dir = if username == "root" { "/root" } else { "/home" };
+            format!("{}/{}", home_dir, rest)
         } else if path == "~" {
-            // Convert ~ to /home/username
-            format!("/home/{}", username)
+            // Convert ~ to appropriate home directory
+            if username == "root" {
+                "/root".to_string()
+            } else {
+                format!("/home/{}", username)
+            }
         } else {
             // No tilde, return as-is (absolute paths remain unchanged)
             path.to_string()
