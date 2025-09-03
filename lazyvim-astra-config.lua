@@ -111,11 +111,10 @@ return {
       local config = astra_config.build
       local cmd = string.format("cd %s && cargo build", astra_config.core_path)
 
+      -- 静态构建总是使用 release 模式
       if config.static_build then
-        cmd = cmd .. " --target x86_64-unknown-linux-musl"
-      end
-
-      if config.release_build then
+        cmd = cmd .. " --target x86_64-unknown-linux-musl --release"
+      elseif config.release_build then
         cmd = cmd .. " --release"
       end
 
@@ -163,9 +162,11 @@ return {
             fidget.notify("✅ 构建完成！", nil, { title = "Astra.nvim", key = "astra_build" })
             
             -- 验证目标文件是否正确创建
-            local target_path = astra_config.binary_path
+            local target_path
             if config.static_build then
               target_path = astra_config.static_binary_path
+            else
+              target_path = astra_config.binary_path
             end
             
             if vim.fn.filereadable(target_path) == 1 then
@@ -243,6 +244,9 @@ return {
       table.insert(info, string.format("  Debug版本: %s", debug_exists and "✅" or "❌"))
       table.insert(info, string.format("  静态构建模式: %s", astra_config.build.static_build and "启用" or "禁用"))
       table.insert(info, string.format("  Release构建模式: %s", astra_config.build.release_build and "启用" or "禁用"))
+      if astra_config.build.static_build then
+        table.insert(info, "  注意: 静态构建总是使用release模式")
+      end
       
       for _, line in ipairs(info) do
         fidget.notify(line, nil, { title = "Astra.nvim" })
