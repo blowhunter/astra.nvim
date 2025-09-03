@@ -293,6 +293,16 @@ sync_interval = 30000
 - Document public APIs
 - Maintain backward compatibility where possible
 
+### Code Formatting
+- **IMPORTANT**: All code must use spaces for indentation, never tabs
+- **Lua files**: Use 2 spaces for indentation
+- **Rust files**: Use 4 spaces for indentation  
+- **Shell scripts**: Use 2 spaces for indentation
+- **Configuration files**: Use 2 spaces for indentation (JSON, TOML, YAML)
+- All files must have consistent spacing and formatting
+- Run `cargo fmt` for Rust code formatting
+- Use consistent line endings (LF) across all files
+
 ### Testing Strategy
 - Unit tests for individual modules
 - Integration tests for end-to-end functionality

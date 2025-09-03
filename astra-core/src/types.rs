@@ -1,7 +1,7 @@
+use crate::i18n::Language;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use crate::i18n::Language;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SftpConfig {

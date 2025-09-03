@@ -177,7 +177,7 @@ async fn init_config(config_path: &str) -> AstraResult<()> {
 async fn sync_files(config_path: Option<&str>, _mode: &str, files: &[String]) -> AstraResult<()> {
     // Initialize i18n system
     crate::i18n::init_translations();
-    
+
     let config_reader = match config_path {
         Some(path) => ConfigReader::new(Some(path.to_string())),
         None => ConfigReader::new(None), // Use automatic discovery
@@ -236,7 +236,8 @@ async fn sync_files(config_path: Option<&str>, _mode: &str, files: &[String]) ->
         if !sync_result.errors.is_empty() {
             sync_result.success = false;
             let error_count = sync_result.errors.len().to_string();
-            sync_result.message = crate::i18n::t_format("cli.sync_failed", &language, &[&error_count]);
+            sync_result.message =
+                crate::i18n::t_format("cli.sync_failed", &language, &[&error_count]);
         } else {
             sync_result.message = crate::i18n::t("cli.sync_complete", &language);
         }
@@ -260,7 +261,11 @@ async fn sync_files(config_path: Option<&str>, _mode: &str, files: &[String]) ->
                 crate::types::OperationType::Upload => {
                     let local_path = operation.local_path.display().to_string();
                     let remote_path = operation.remote_path.display().to_string();
-                    let msg = crate::i18n::t_format("cli.upload_operation", &language, &[&local_path, &remote_path]);
+                    let msg = crate::i18n::t_format(
+                        "cli.upload_operation",
+                        &language,
+                        &[&local_path, &remote_path],
+                    );
                     println!("{}", msg);
 
                     match client.upload_file(&operation.local_path, &operation.remote_path) {
@@ -277,7 +282,11 @@ async fn sync_files(config_path: Option<&str>, _mode: &str, files: &[String]) ->
                 crate::types::OperationType::Download => {
                     let remote_path = operation.remote_path.display().to_string();
                     let local_path = operation.local_path.display().to_string();
-                    let msg = crate::i18n::t_format("cli.download_operation", &language, &[&remote_path, &local_path]);
+                    let msg = crate::i18n::t_format(
+                        "cli.download_operation",
+                        &language,
+                        &[&remote_path, &local_path],
+                    );
                     println!("{}", msg);
 
                     match client.download_file(&operation.remote_path, &operation.local_path) {
@@ -305,7 +314,7 @@ async fn sync_files(config_path: Option<&str>, _mode: &str, files: &[String]) ->
 async fn check_status(config_path: Option<&str>) -> AstraResult<()> {
     // Initialize i18n system
     crate::i18n::init_translations();
-    
+
     let config_reader = match config_path {
         Some(path) => ConfigReader::new(Some(path.to_string())),
         None => ConfigReader::new(None), // Use automatic discovery
@@ -316,21 +325,33 @@ async fn check_status(config_path: Option<&str>) -> AstraResult<()> {
     let client = SftpClient::new(config)?;
     let operations = client.sync_incremental()?;
 
-    let pending_msg = crate::i18n::t_format("cli.pending_operations", &language, &[&operations.len().to_string()]);
+    let pending_msg = crate::i18n::t_format(
+        "cli.pending_operations",
+        &language,
+        &[&operations.len().to_string()],
+    );
     println!("{}", pending_msg);
-    
+
     for operation in &operations {
         match operation.operation_type {
             crate::types::OperationType::Upload => {
                 let local_path = operation.local_path.display().to_string();
                 let remote_path = operation.remote_path.display().to_string();
-                let msg = crate::i18n::t_format("cli.upload_operation", &language, &[&local_path, &remote_path]);
+                let msg = crate::i18n::t_format(
+                    "cli.upload_operation",
+                    &language,
+                    &[&local_path, &remote_path],
+                );
                 println!("  {}", msg);
             }
             crate::types::OperationType::Download => {
                 let remote_path = operation.remote_path.display().to_string();
                 let local_path = operation.local_path.display().to_string();
-                let msg = crate::i18n::t_format("cli.download_operation", &language, &[&remote_path, &local_path]);
+                let msg = crate::i18n::t_format(
+                    "cli.download_operation",
+                    &language,
+                    &[&remote_path, &local_path],
+                );
                 println!("  {}", msg);
             }
             _ => {}
@@ -386,7 +407,7 @@ async fn test_config(config_path: Option<&str>) -> AstraResult<()> {
     // Initialize i18n system
     crate::i18n::init_translations();
     let language = crate::i18n::detect_language();
-    
+
     let testing_msg = crate::i18n::t("cli.testing_config", &language);
     println!("{}", testing_msg);
 
@@ -447,7 +468,7 @@ fn show_version() -> AstraResult<()> {
     // Initialize i18n system
     crate::i18n::init_translations();
     let language = crate::i18n::detect_language();
-    
+
     let version_info = crate::i18n::t("cli.version_info", &language);
     println!("{}", version_info);
     println!("Version: {}", env!("CARGO_PKG_VERSION"));
