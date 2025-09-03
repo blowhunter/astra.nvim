@@ -133,6 +133,9 @@ return {
         key = "astra_build",
       })
 
+      -- 添加调试信息
+      fidget.notify("构建命令: " .. cmd, nil, { title = "Astra.nvim", key = "astra_build" })
+      
       -- 异步执行构建
       vim.fn.jobstart(cmd, {
         stdout_buffered = true,
@@ -158,17 +161,36 @@ return {
         on_exit = function(_, exit_code)
           if exit_code == 0 then
             fidget.notify("✅ 构建完成！", nil, { title = "Astra.nvim", key = "astra_build" })
-            vim.notify(
-              "Astra.nvim 核心程序构建成功！",
-              vim.log.levels.INFO,
-              { title = "Astra.nvim" }
-            )
-            -- 构建成功后刷新配置
-            vim.schedule(function()
-              pcall(function()
-                vim.cmd.AstraRefreshConfig()
+            
+            -- 验证目标文件是否正确创建
+            local target_path = astra_config.binary_path
+            if config.static_build then
+              target_path = astra_config.static_binary_path
+            end
+            
+            if vim.fn.filereadable(target_path) == 1 then
+              local size = vim.fn.getfsize(target_path)
+              fidget.notify(string.format("📦 目标文件已创建: %s (%.1fMB)", target_path, size / 1024 / 1024), nil, { title = "Astra.nvim", key = "astra_build" })
+              
+              vim.notify(
+                "Astra.nvim 核心程序构建成功！",
+                vim.log.levels.INFO,
+                { title = "Astra.nvim" }
+              )
+              
+              -- 构建成功后刷新配置
+              vim.schedule(function()
+                pcall(function()
+                  vim.cmd.AstraRefreshConfig()
+                end)
               end)
-            end)
+            else
+              fidget.notify(
+                "❌ 构建完成但目标文件未找到: " .. target_path,
+                vim.log.levels.ERROR,
+                { title = "Astra.nvim", key = "astra_build" }
+              )
+            end
           else
             fidget.notify(
               "❌ 构建失败！",
@@ -185,9 +207,46 @@ return {
       })
     end
 
-    -- 检查核心程序是否存在
+    -- 检查核心程序是否存在（智能检查静态和release版本）
     function astra_utils.check_core()
-      return vim.fn.filereadable(astra_config.binary_path) == 1
+      local release_exists = vim.fn.filereadable(astra_config.binary_path) == 1
+      local static_exists = vim.fn.filereadable(astra_config.static_binary_path) == 1
+      
+      if astra_config.build.static_build then
+        return static_exists or release_exists
+      else
+        return release_exists or static_exists
+      end
+    end
+
+    -- 清理debug版本（节省空间）
+    function astra_utils.cleanup_debug()
+      local debug_path = astra_config.core_path .. "/target/debug/astra-core"
+      if vim.fn.filereadable(debug_path) == 1 then
+        vim.fn.delete(debug_path)
+        fidget.notify("🧹 已清理debug版本", nil, { title = "Astra.nvim" })
+      else
+        fidget.notify("未找到debug版本", nil, { title = "Astra.nvim" })
+      end
+    end
+
+    -- 显示构建信息
+    function astra_utils.show_build_info()
+      local release_exists = vim.fn.filereadable(astra_config.binary_path) == 1
+      local static_exists = vim.fn.filereadable(astra_config.static_binary_path) == 1
+      local debug_exists = vim.fn.filereadable(astra_config.core_path .. "/target/debug/astra-core") == 1
+      
+      local info = {}
+      table.insert(info, "🔧 Astra.nvim 构建信息:")
+      table.insert(info, string.format("  Release版本: %s", release_exists and "✅" or "❌"))
+      table.insert(info, string.format("  Static版本: %s", static_exists and "✅" or "❌"))
+      table.insert(info, string.format("  Debug版本: %s", debug_exists and "✅" or "❌"))
+      table.insert(info, string.format("  静态构建模式: %s", astra_config.build.static_build and "启用" or "禁用"))
+      table.insert(info, string.format("  Release构建模式: %s", astra_config.build.release_build and "启用" or "禁用"))
+      
+      for _, line in ipairs(info) do
+        fidget.notify(line, nil, { title = "Astra.nvim" })
+      end
     end
 
     -- 更新插件
@@ -333,6 +392,14 @@ return {
       desc = "检查 Astra.nvim 状态和配置",
     })
 
+    vim.api.nvim_create_user_command("AstraCleanupDebug", astra_utils.cleanup_debug, {
+      desc = "清理 Astra.nvim debug版本",
+    })
+
+    vim.api.nvim_create_user_command("AstraBuildInfo", astra_utils.show_build_info, {
+      desc = "显示 Astra.nvim 构建信息",
+    })
+
     vim.api.nvim_create_user_command("AstraSyncCurrent", astra_utils.sync_current_file, {
       desc = "智能同步当前文件（自动检测路径）",
     })
@@ -361,31 +428,46 @@ return {
 
     -- 优化的键位映射
     local keys = {
-      -- 基础操作
+      -- 同步操作 (As - Sync)
       { "<leader>AS", "<cmd>AstraSync auto<cr>", desc = "Astra 同步项目", mode = "n" },
       { "<leader>As", "<cmd>AstraSync auto<cr>", desc = "Astra 同步项目", mode = "n" },
-      { "<leader>Au", "<cmd>AstraUploadCurrent<cr>", desc = "Astra 上传当前文件", mode = "n" },
+      { "<leader>Ass", "<cmd>AstraSync auto<cr>", desc = "Astra 同步项目", mode = "n" },
+      { "<leader>Asf", "<cmd>AstraSyncCurrent<cr>", desc = "Astra 同步当前文件", mode = "n" },
+      { "<leader>Asp", "<cmd>AstraSyncProject<cr>", desc = "Astra 同步项目", mode = "n" },
+
+      -- 上传下载操作 (Ad - Download/Upload)  
       { "<leader>Ad", "<cmd>AstraDownload<cr>", desc = "Astra 下载文件", mode = "n" },
+      { "<leader>Adu", "<cmd>AstraUploadCurrent<cr>", desc = "Astra 上传当前文件", mode = "n" },
+      { "<leader>Add", "<cmd>AstraDownload<cr>", desc = "Astra 下载文件", mode = "n" },
 
-      -- 便捷操作
-      { "<leader>Acs", "<cmd>AstraSyncCurrent<cr>", desc = "Astra 同步当前文件", mode = "n" },
-      { "<leader>Aps", "<cmd>AstraSyncProject<cr>", desc = "Astra 同步项目", mode = "n" },
-
-      -- 配置和管理
+      -- 构建操作 (Ab - Build)
       { "<leader>Ab", "<cmd>AstraBuildCore<cr>", desc = "Astra 构建核心", mode = "n" },
-      { "<leader>Ai", "<cmd>AstraInit<cr>", desc = "Astra 初始化配置", mode = "n" },
-      { "<leader>Ac", "<cmd>AstraStatusCheck<cr>", desc = "Astra 检查状态", mode = "n" },
-      { "<leader>Ar", "<cmd>AstraRefreshConfig<cr>", desc = "Astra 刷新配置", mode = "n" },
-      { "<leader>AU", "<cmd>AstraUpdate<cr>", desc = "Astra 更新插件", mode = "n" },
-      { "<leader>AD", "<cmd>AstraCheckDeps<cr>", desc = "Astra 检查依赖", mode = "n" },
+      { "<leader>Abb", "<cmd>AstraBuildCore<cr>", desc = "Astra 构建核心", mode = "n" },
+      { "<leader>Abi", "<cmd>AstraBuildInfo<cr>", desc = "Astra 构建信息", mode = "n" },
+      { "<leader>Abc", "<cmd>AstraCleanupDebug<cr>", desc = "Astra 清理debug", mode = "n" },
 
-      -- 版本和更新
+      -- 更新操作 (AU - Update)
+      { "<leader>AU", "<cmd>AstraUpdate<cr>", desc = "Astra 更新插件", mode = "n" },
+      { "<leader>AUu", "<cmd>AstraUpdate<cr>", desc = "Astra 更新插件", mode = "n" },
+      { "<leader>AUc", "<cmd>AstraUpdateCheck<cr>", desc = "Astra 检查更新", mode = "n" },
+
+      -- 检查操作 (Ac - Check)
+      { "<leader>Ac", "<cmd>AstraStatusCheck<cr>", desc = "Astra 检查状态", mode = "n" },
+      { "<leader>Acs", "<cmd>AstraStatusCheck<cr>", desc = "Astra 检查状态", mode = "n" },
+      { "<leader>Acd", "<cmd>AstraCheckDeps<cr>", desc = "Astra 检查依赖", mode = "n" },
+
+      -- 配置操作 (Ar - Configure)
+      { "<leader>Ar", "<cmd>AstraRefreshConfig<cr>", desc = "Astra 刷新配置", mode = "n" },
+      { "<leader>Arc", "<cmd>AstraRefreshConfig<cr>", desc = "Astra 刷新配置", mode = "n" },
+      { "<leader>Ari", "<cmd>AstraInit<cr>", desc = "Astra 初始化配置", mode = "n" },
+
+      -- 版本操作 (Av - Version)
       { "<leader>Av", "<cmd>AstraVersion<cr>", desc = "Astra 显示版本", mode = "n" },
-      { "<leader>AC", "<cmd>AstraUpdateCheck<cr>", desc = "Astra 检查更新", mode = "n" },
+      { "<leader>Avv", "<cmd>AstraVersion<cr>", desc = "Astra 显示版本", mode = "n" },
 
       -- 可视模式操作
       {
-        "<leader>Au",
+        "<leader>Adu",
         ":<c-u>lua require('astra.utils').sync_current_file()<cr>",
         desc = "Astra 同步选中文件",
         mode = "v",
@@ -440,17 +522,10 @@ return {
     -- 初始化完成提示
     vim.notify("Astra.nvim: 插件初始化完成", vim.log.levels.INFO, { title = "Astra.nvim" })
 
-    -- 显示使用提示
+    -- 显示简洁的使用提示
     vim.schedule(function()
-      vim.notify("Astra.nvim 使用提示:", vim.log.levels.INFO, { title = "Astra.nvim" })
-      vim.notify("  • <leader>Ai - 初始化配置 (首次使用)", vim.log.levels.INFO)
-      vim.notify("  • <leader>As - 同步项目", vim.log.levels.INFO)
-      vim.notify("  • <leader>Au - 上传当前文件", vim.log.levels.INFO)
-      vim.notify("  • <leader>Acs - 智能同步当前文件", vim.log.levels.INFO)
-      vim.notify("  • <leader>Ar - 刷新配置", vim.log.levels.INFO)
-      vim.notify("  • <leader>Av - 显示版本信息", vim.log.levels.INFO)
-      vim.notify("  • <leader>Auc - 检查更新", vim.log.levels.INFO)
-      vim.notify("  • 提示: 没有配置时只提供初始化功能", vim.log.levels.INFO)
+      vim.notify("Astra.nvim 插件已加载完成", vim.log.levels.INFO, { title = "Astra.nvim" })
+      vim.notify("使用 <leader>A 查看所有可用快捷键", vim.log.levels.INFO, { title = "Astra.nvim" })
     end)
   end,
 }

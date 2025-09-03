@@ -286,6 +286,49 @@ sync_interval = 30000
 4. Update documentation in `README.md`
 5. Update this CLAUDE.md file with architectural changes
 
+### Key Mapping Design Standards
+
+#### 语义继承性原则
+所有键映射设计必须遵循语义继承性原则，确保按键的逻辑性和一致性：
+
+1. **避免三级键映射冲突**
+   - 如果存在三级键映射 `Auc`（检查更新），则二级键映射 `Au` 不能用于其他功能
+   - 三级键映射会阻止二级键映射的触发，导致功能无法正常使用
+
+2. **语义分组设计**
+   - 二级键映射应该代表功能域，三级键映射表示具体操作
+   - 相同功能域的操作应该共享相同的二级键映射前缀
+
+3. **语义一致性要求**
+   - 二级键映射的语义必须与三级功能的语义保持一致
+   - 功能域的字母选择应该符合自然语义
+
+#### 标准功能域分类
+- **As (Sync)**: 同步相关操作
+- **Ad (Download/Upload)**: 文件传输操作  
+- **Ab (Build)**: 构建相关操作
+- **AU (Update)**: 更新相关操作
+- **Ac (Check)**: 检查相关操作
+- **Ar (Configure)**: 配置相关操作
+- **Av (Version)**: 版本相关操作
+
+#### 键映射命名规范
+```
+<leader>A{功能域}{具体操作}
+```
+
+**示例**：
+- `Adu` = Upload (文件传输域 + 上传操作)
+- `AUc` = Update Check (更新域 + 检查操作)
+- `Abi` = Build Info (构建域 + 信息操作)
+
+#### 冲突检测规则
+在定义新键映射时，必须检查：
+1. 是否存在冲突的二级键映射
+2. 语义是否符合功能域分类
+3. 是否遵循命名规范
+4. 是否破坏现有功能
+
 ### Code Standards
 - Follow Rust best practices and idioms
 - Use comprehensive error handling with AstraResult
