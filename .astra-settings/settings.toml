@@ -1,9 +1,9 @@
 [sftp]
 host = "8.152.204.236"
 port = 22
-username = "dev"
+username = "root"
 private_key_path = "~/.ssh/id_rsa"
-remote_path = "~/tmp/test"
+remote_path = "~/test"
 local_path = "~/work/rust/astra.nvim"
 
 [sync]

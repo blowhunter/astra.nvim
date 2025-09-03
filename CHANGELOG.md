@@ -1,5 +1,31 @@
 # Astra.nvim 变更日志
 
+## 版本 0.3.1 - 路径解析修复
+
+### 🐛 问题修复
+
+#### 远程路径解析修复
+- **~ 符号扩展修复**：修复了远程路径中 `~` 符号被错误解析的问题
+- **用户名处理**：对于非 root 用户，`~/test` 现在正确解析为 `/home/username/test` 而不是 `/home/test`
+- **root 用户支持**：root 用户的 `~/test` 仍然正确解析为 `/root/test`
+- **路径验证**：添加了单元测试验证各种路径解析场景
+
+#### 技术细节
+- **修复位置**：`astra-core/src/config.rs` 中的 `expand_tilde_remote` 函数
+- **修复前**：`let home_dir = if username == "root" { "/root" } else { "/home" };`
+- **修复后**：`let home_dir = if username == "root" { "/root".to_string() } else { format!("/home/{}", username) };`
+- **测试覆盖**：添加了完整的单元测试验证路径解析逻辑
+
+### 🧪 测试覆盖
+
+#### 新增测试
+- **路径解析测试**：`test_expand_tilde_remote` 函数验证各种场景
+- **root 用户测试**：验证 `~/test` → `/root/test` 转换
+- **普通用户测试**：验证 `~/test` → `/home/username/test` 转换
+- **绝对路径测试**：验证非 `~` 开头的路径保持不变
+
+---
+
 ## 版本 0.3.0 - 静态构建支持
 
 ### 🌍 新增功能

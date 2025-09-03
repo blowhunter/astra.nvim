@@ -20,6 +20,7 @@ mod tests {
             private_key_path: None,
             remote_path: "/remote".to_string(),
             local_path: temp_dir.path().to_str().unwrap().to_string(),
+            language: Some(crate::i18n::detect_language()),
         };
 
         let client = SftpClient::new(config);
@@ -49,6 +50,7 @@ mod tests {
             private_key_path: None,
             remote_path: "/remote".to_string(),
             local_path: temp_dir.path().to_str().unwrap().to_string(),
+            language: Some(crate::i18n::detect_language()),
         };
 
         let client = SftpClient::new(config);

@@ -12,6 +12,8 @@ mod integration_tests;
 #[cfg(test)]
 mod sftp_tests;
 #[cfg(test)]
+mod test_tilde;
+#[cfg(test)]
 mod types_tests;
 
 use crate::error::AstraResult;

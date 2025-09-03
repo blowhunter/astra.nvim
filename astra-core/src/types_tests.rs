@@ -16,6 +16,7 @@ mod tests {
             private_key_path: None,
             remote_path: "/remote".to_string(),
             local_path: "/local".to_string(),
+            language: Some(crate::i18n::detect_language()),
         };
 
         let json = serde_json::to_string(&config).unwrap();
