@@ -66,9 +66,14 @@ function M:discover_configuration()
 
   -- Check if any configuration file exists
   local cwd = vim.fn.getcwd()
-  local has_config = vim.loop.fs_stat(cwd .. "/.astra-settings/settings.toml") ~= nil
-    or vim.loop.fs_stat(cwd .. "/.vscode/sftp.json") ~= nil
-    or vim.loop.fs_stat(cwd .. "/astra.json") ~= nil
+  local toml_path = cwd .. "/.astra-settings/settings.toml"
+  local vscode_path = cwd .. "/.vscode/sftp.json"
+  local json_path = cwd .. "/astra.json"
+  
+  local has_toml = vim.loop.fs_stat(toml_path) ~= nil
+  local has_vscode = vim.loop.fs_stat(vscode_path) ~= nil
+  local has_json = vim.loop.fs_stat(json_path) ~= nil
+  local has_config = has_toml or has_vscode or has_json
 
   if not has_config then
     M.config_cache = nil
@@ -76,7 +81,25 @@ function M:discover_configuration()
     return nil
   end
 
-  local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
+  -- Smart binary path selection - try both static and release builds
+  local binary_path = nil
+  local static_binary_exists = vim.loop.fs_stat(M.static_binary_path) ~= nil
+  local release_binary_exists = vim.loop.fs_stat(M.binary_path) ~= nil
+
+  if M.config.static_build and static_binary_exists then
+    binary_path = M.static_binary_path
+  elseif release_binary_exists then
+    binary_path = M.binary_path
+  elseif static_binary_exists then
+    -- Fallback to static binary if release doesn't exist
+    binary_path = M.static_binary_path
+  else
+    vim.notify("Astra: No binary file found. Please build the project first.", vim.log.levels.ERROR)
+    M.config_cache = nil
+    M.last_config_check = current_time
+    return nil
+  end
+  
   local cmd = string.format("cd %s && %s config-test 2>/dev/null", self.core_path, binary_path)
   local output = vim.fn.system(cmd)
   

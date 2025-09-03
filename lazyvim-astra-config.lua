@@ -165,9 +165,9 @@ return {
             )
             -- 构建成功后刷新配置
             vim.schedule(function()
-              if vim.cmd.AstraRefreshConfig then
+              pcall(function()
                 vim.cmd.AstraRefreshConfig()
-              end
+              end)
             end)
           else
             fidget.notify(
@@ -255,19 +255,20 @@ return {
 
       -- 初始化后刷新配置
       vim.schedule(function()
-        if vim.cmd.AstraRefreshConfig then
+        pcall(function()
           vim.cmd.AstraRefreshConfig()
-        end
+        end)
       end)
     end
 
     -- 状态检查函数
     function astra_utils.check_status()
       -- 检查配置状态
-      if vim.cmd.AstraStatus then
+      local success, err = pcall(function()
         vim.cmd.AstraStatus()
-      else
-        vim.notify("Astra.nvim: 插件未正确初始化", vim.log.levels.ERROR)
+      end)
+      if not success then
+        vim.notify("Astra.nvim: 插件未正确初始化或无配置", vim.log.levels.ERROR)
       end
     end
 
@@ -290,21 +291,25 @@ return {
       end
 
       -- 上传当前文件
-      if vim.cmd.AstraUploadCurrent then
-        vim.notify("Astra.nvim: 正在同步文件: " .. relative_path, vim.log.levels.INFO)
+      local success, err = pcall(function()
         vim.cmd.AstraUploadCurrent()
+      end)
+      if success then
+        vim.notify("Astra.nvim: 正在同步文件: " .. relative_path, vim.log.levels.INFO)
       else
-        vim.notify("Astra.nvim: 上传命令不可用", vim.log.levels.ERROR)
+        vim.notify("Astra.nvim: 上传命令不可用或无配置", vim.log.levels.ERROR)
       end
     end
 
     -- 批量同步函数
     function astra_utils.sync_project()
-      if vim.cmd.AstraSync then
-        vim.notify("Astra.nvim: 正在同步项目...", vim.log.levels.INFO)
+      local success, err = pcall(function()
         vim.cmd("AstraSync auto")
+      end)
+      if success then
+        vim.notify("Astra.nvim: 正在同步项目...", vim.log.levels.INFO)
       else
-        vim.notify("Astra.nvim: 同步命令不可用", vim.log.levels.ERROR)
+        vim.notify("Astra.nvim: 同步命令不可用或无配置", vim.log.levels.ERROR)
       end
     end
 
@@ -337,18 +342,20 @@ return {
     })
 
     vim.api.nvim_create_user_command("AstraVersion", function()
-      if vim.cmd.AstraVersion then
+      local success, err = pcall(function()
         vim.cmd.AstraVersion()
-      else
-        vim.notify("Astra.nvim: 版本命令不可用", vim.log.levels.ERROR)
+      end)
+      if not success then
+        vim.notify("Astra.nvim: 版本命令不可用或无配置", vim.log.levels.ERROR)
       end
     end, { desc = "显示 Astra.nvim 版本信息" })
 
     vim.api.nvim_create_user_command("AstraUpdateCheck", function()
-      if vim.cmd.AstraCheckUpdate then
+      local success, err = pcall(function()
         vim.cmd.AstraCheckUpdate()
-      else
-        vim.notify("Astra.nvim: 更新检查命令不可用", vim.log.levels.ERROR)
+      end)
+      if not success then
+        vim.notify("Astra.nvim: 更新检查命令不可用或无配置", vim.log.levels.ERROR)
       end
     end, { desc = "检查 Astra.nvim 更新" })
 
