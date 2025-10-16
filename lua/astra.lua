@@ -50,6 +50,11 @@ function M.setup(opts)
     vim.api.nvim_create_user_command("AstraInit", function()
       M:init_config()
     end, { desc = "Initialize Astra configuration" })
+
+    -- Always make AstraConfigTest available for testing
+    vim.api.nvim_create_user_command("AstraConfigTest", function()
+      M:test_config()
+    end, { desc = "Test configuration discovery and show detailed parsing results" })
     
     vim.notify("Astra: No configuration found. Use :AstraInit to create configuration", vim.log.levels.INFO)
   end
@@ -431,35 +436,59 @@ function M:initialize_commands()
   vim.api.nvim_create_user_command("AstraCheckUpdate", function()
     M:check_for_updates()
   end, { desc = "Check for Astra.nvim updates" })
+
+  vim.api.nvim_create_user_command("AstraConfigTest", function()
+    M:test_config()
+  end, { desc = "Test configuration discovery and show detailed parsing results" })
 end
 
 function M:init_config()
   local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
   local cmd = string.format("cd %s && %s init", self.core_path, binary_path)
 
-  vim.fn.system(cmd)
+  vim.notify("Astra: Initializing configuration...", vim.log.levels.INFO)
 
-  if vim.v.shell_error == 0 then
-    vim.notify("Astra: Configuration initialized successfully")
-    
-    -- Reload the plugin with new configuration
-    vim.notify("Astra: Reloading plugin with new configuration...", vim.log.levels.INFO)
-    
-    -- Clear existing configuration cache
-    M.config_cache = nil
-    M.last_config_check = 0
-    
-    -- Clean up existing features
-    if M.auto_sync_timer then
-      M.auto_sync_timer:close()
-      M.auto_sync_timer = nil
-    end
-    
-    -- Re-run setup with existing options
-    M.setup(M.config)
-  else
-    vim.notify("Astra: Failed to initialize configuration", vim.log.levels.ERROR)
-  end
+  vim.fn.jobstart(cmd, {
+    stdout_buffered = true,
+    stderr_buffered = true,
+    on_stdout = function(_, data)
+      if data and #data > 0 then
+        local output = table.concat(data, "\n")
+        if output:match("Configuration initialized") then
+          vim.notify("Astra: Configuration initialized successfully")
+
+          -- Reload the plugin with new configuration
+          vim.notify("Astra: Reloading plugin with new configuration...", vim.log.levels.INFO)
+
+          -- Clear existing configuration cache
+          M.config_cache = nil
+          M.last_config_check = 0
+
+          -- Clean up existing features
+          if M.auto_sync_timer then
+            M.auto_sync_timer:close()
+            M.auto_sync_timer = nil
+          end
+
+          -- Re-run setup with existing options (delay to ensure file is written)
+          vim.defer_fn(function()
+            M.setup(M.config)
+          end, 1000)
+        end
+      end
+    end,
+    on_stderr = function(_, data)
+      if data and #data > 0 then
+        local error_output = table.concat(data, "\n")
+        vim.notify("Astra: Configuration error\n" .. error_output, vim.log.levels.ERROR)
+      end
+    end,
+    on_exit = function(_, exit_code)
+      if exit_code ~= 0 then
+        vim.notify("Astra: Failed to initialize configuration", vim.log.levels.ERROR)
+      end
+    end,
+  })
 end
 
 function M:sync_files(mode)
@@ -468,17 +497,39 @@ function M:sync_files(mode)
     vim.notify("Astra: No configuration found. Please run :AstraInit to create configuration", vim.log.levels.ERROR)
     return
   end
-  
+
   local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
   local cmd = string.format("cd %s && %s sync --mode %s", self.core_path, binary_path, mode)
 
-  vim.fn.system(cmd)
+  vim.notify("Astra: Starting sync operation in background...", vim.log.levels.INFO)
 
-  if vim.v.shell_error == 0 then
-    vim.notify("Astra: Sync completed successfully")
-  else
-    vim.notify("Astra: Sync failed", vim.log.levels.ERROR)
-  end
+  vim.fn.jobstart(cmd, {
+    stdout_buffered = true,
+    stderr_buffered = true,
+    on_stdout = function(_, data)
+      if data and #data > 0 then
+        local output = table.concat(data, "\n")
+        -- Parse sync result from JSON output
+        local success = self:parse_sync_result(output)
+        if success then
+          vim.notify("Astra: Sync completed successfully", vim.log.levels.INFO)
+        else
+          vim.notify("Astra: Sync completed with some issues", vim.log.levels.WARN)
+        end
+      end
+    end,
+    on_stderr = function(_, data)
+      if data and #data > 0 then
+        local error_output = table.concat(data, "\n")
+        vim.notify("Astra: Sync error\n" .. error_output, vim.log.levels.ERROR)
+      end
+    end,
+    on_exit = function(_, exit_code)
+      if exit_code ~= 0 then
+        vim.notify("Astra: Sync failed with exit code: " .. exit_code, vim.log.levels.ERROR)
+      end
+    end,
+  })
 end
 
 function M:check_status()
@@ -506,12 +557,12 @@ function M:upload_file(local_path, remote_path)
     vim.notify("Astra: No configuration found. Please run :AstraInit to create configuration", vim.log.levels.ERROR)
     return
   end
-  
+
   -- Ensure local_path is absolute
   if not local_path:match("^/") then
     local_path = vim.fn.fnamemodify(local_path, ":p")
   end
-  
+
   local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
   local cmd = string.format(
     "cd %s && %s upload --local %s --remote %s",
@@ -521,13 +572,31 @@ function M:upload_file(local_path, remote_path)
     remote_path
   )
 
-  vim.fn.system(cmd)
+  vim.notify("Astra: Uploading file in background...\n" .. local_path .. " -> " .. remote_path, vim.log.levels.INFO)
 
-  if vim.v.shell_error == 0 then
-    vim.notify("Astra: File uploaded successfully\n" .. local_path .. " -> " .. remote_path)
-  else
-    vim.notify("Astra: Failed to upload file\n" .. local_path .. " -> " .. remote_path, vim.log.levels.ERROR)
-  end
+  vim.fn.jobstart(cmd, {
+    stdout_buffered = true,
+    stderr_buffered = true,
+    on_stdout = function(_, data)
+      if data and #data > 0 then
+        local output = table.concat(data, "\n")
+        if output:match("successfully") or output:match("completed") then
+          vim.notify("Astra: File uploaded successfully\n" .. local_path .. " -> " .. remote_path, vim.log.levels.INFO)
+        end
+      end
+    end,
+    on_stderr = function(_, data)
+      if data and #data > 0 then
+        local error_output = table.concat(data, "\n")
+        vim.notify("Astra: Upload error\n" .. error_output, vim.log.levels.ERROR)
+      end
+    end,
+    on_exit = function(_, exit_code)
+      if exit_code ~= 0 then
+        vim.notify("Astra: Failed to upload file\n" .. local_path .. " -> " .. remote_path, vim.log.levels.ERROR)
+      end
+    end,
+  })
 end
 
 function M:download_file(remote_path, local_path)
@@ -536,12 +605,12 @@ function M:download_file(remote_path, local_path)
     vim.notify("Astra: No configuration found. Please run :AstraInit to create configuration", vim.log.levels.ERROR)
     return
   end
-  
+
   -- Ensure local_path is absolute
   if not local_path:match("^/") then
     local_path = vim.fn.fnamemodify(local_path, ":p")
   end
-  
+
   local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
   local cmd = string.format(
     "cd %s && %s download --remote %s --local %s",
@@ -551,13 +620,31 @@ function M:download_file(remote_path, local_path)
     local_path
   )
 
-  vim.fn.system(cmd)
+  vim.notify("Astra: Downloading file in background...\n" .. remote_path .. " -> " .. local_path, vim.log.levels.INFO)
 
-  if vim.v.shell_error == 0 then
-    vim.notify("Astra: File downloaded successfully\n" .. remote_path .. " -> " .. local_path)
-  else
-    vim.notify("Astra: Failed to download file\n" .. remote_path .. " -> " .. local_path, vim.log.levels.ERROR)
-  end
+  vim.fn.jobstart(cmd, {
+    stdout_buffered = true,
+    stderr_buffered = true,
+    on_stdout = function(_, data)
+      if data and #data > 0 then
+        local output = table.concat(data, "\n")
+        if output:match("successfully") or output:match("completed") then
+          vim.notify("Astra: File downloaded successfully\n" .. remote_path .. " -> " .. local_path, vim.log.levels.INFO)
+        end
+      end
+    end,
+    on_stderr = function(_, data)
+      if data and #data > 0 then
+        local error_output = table.concat(data, "\n")
+        vim.notify("Astra: Download error\n" .. error_output, vim.log.levels.ERROR)
+      end
+    end,
+    on_exit = function(_, exit_code)
+      if exit_code ~= 0 then
+        vim.notify("Astra: Failed to download file\n" .. remote_path .. " -> " .. local_path, vim.log.levels.ERROR)
+      end
+    end,
+  })
 end
 
 function M:start_auto_sync()
@@ -595,14 +682,23 @@ function M:sync_single_file(file_path)
     vim.notify("Astra: No configuration found. Please run :AstraInit to create configuration", vim.log.levels.ERROR)
     return
   end
-  
+
   -- Ensure file_path is absolute
   if not file_path:match("^/") then
     file_path = vim.fn.fnamemodify(file_path, ":p")
   end
-  
+
   local remote_path = M:get_remote_path(file_path)
   if remote_path then
+    -- Debounce: avoid multiple syncs for the same file within short time
+    local file_key = file_path .. ":" .. remote_path
+    local current_time = vim.loop.hrtime() / 1000000000 -- Convert to seconds
+
+    if M.sync_debounce_time and (current_time - M.sync_debounce_time) < 2 then
+      return -- Skip if sync was attempted within last 2 seconds
+    end
+
+    M.sync_debounce_time = current_time
     M:upload_file(file_path, remote_path)
   else
     vim.notify("Astra: Cannot determine remote path for " .. file_path, vim.log.levels.ERROR)
@@ -666,17 +762,210 @@ function M:check_for_updates()
   })
 end
 
+function M:parse_sync_result(output)
+  -- Parse sync result from JSON or text output
+  local lines = vim.split(output, "\n")
+  for _, line in ipairs(lines) do
+    -- Look for success indicators in output
+    if line:match('"success"%s*:%s*true') or line:match("successfully") then
+      return true
+    end
+    -- Look for failure indicators
+    if line:match('"success"%s*:%s*false') or line:match("failed") or line:match("error") then
+      return false
+    end
+  end
+  -- If no clear success/failure indicator, assume success
+  return true
+end
+
+function M:test_config()
+  local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
+  local cmd = string.format("cd %s && %s config-test", self.core_path, binary_path)
+
+  vim.notify("Astra: Testing configuration discovery...", vim.log.levels.INFO)
+
+  -- Run config test in background to get detailed results
+  vim.fn.jobstart(cmd, {
+    stdout_buffered = true,
+    stderr_buffered = true,
+    on_stdout = function(_, data)
+      if data and #data > 0 then
+        local output = table.concat(data, "\n")
+        M:display_config_test_result(output)
+      end
+    end,
+    on_stderr = function(_, data)
+      if data and #data > 0 then
+        local error_output = table.concat(data, "\n")
+        vim.notify("Astra: Configuration test error\n" .. error_output, vim.log.levels.ERROR)
+      end
+    end,
+    on_exit = function(_, exit_code)
+      if exit_code ~= 0 then
+        vim.notify("Astra: Configuration test failed with exit code: " .. exit_code, vim.log.levels.ERROR)
+      end
+    end,
+  })
+end
+
+function M:display_config_test_result(output)
+  -- Parse and display the config-test output in a user-friendly format
+  local lines = vim.split(output, "\n")
+  local result_lines = {}
+
+  -- Add header
+  table.insert(result_lines, "🔧 Astra Configuration Test Results")
+  table.insert(result_lines, "")
+
+  -- Extract key information from output
+  local config_info = {}
+  local has_config = false
+
+  for _, line in ipairs(lines) do
+    -- Check for configuration loaded success
+    if line:match("✅.*Configuration loaded successfully") then
+      has_config = true
+      table.insert(result_lines, line)
+    end
+
+    -- Extract configuration details
+    local host = line:match("Host: ([^\n]+)")
+    if host then config_info.host = host end
+
+    local port = line:match("Port: ([^\n]+)")
+    if port then config_info.port = port end
+
+    local username = line:match("Username: ([^\n]+)")
+    if username then config_info.username = username end
+
+    local remote_path = line:match("Remote path: ([^\n]+)")
+    if remote_path then config_info.remote_path = remote_path end
+
+    local local_path = line:match("Local path: ([^\n]+)")
+    if local_path then config_info.local_path = local_path end
+
+    local password = line:match("Password: ([^\n]+)")
+    if password then config_info.password = password end
+
+    local private_key_path = line:match("Private key path: ([^\n]+)")
+    if private_key_path then config_info.private_key_path = private_key_path end
+
+    -- Check for project root information
+    if line:match("Project root found:") then
+      table.insert(result_lines, "")
+      table.insert(result_lines, line)
+    end
+
+    -- Check for explicit config path
+    if line:match("Using explicit config path:") then
+      table.insert(result_lines, "")
+      table.insert(result_lines, line)
+    end
+
+    -- Check for automatic discovery
+    if line:match("Using automatic config discovery") then
+      table.insert(result_lines, "")
+      table.insert(result_lines, line)
+    end
+  end
+
+  -- If configuration was found, add detailed information
+  if has_config then
+    table.insert(result_lines, "")
+    table.insert(result_lines, "📋 Configuration Details:")
+
+    -- Display basic connection info
+    if config_info.host then
+      table.insert(result_lines, string.format("  Host: %s", config_info.host))
+    end
+    if config_info.port then
+      table.insert(result_lines, string.format("  Port: %s", config_info.port))
+    end
+    if config_info.username then
+      table.insert(result_lines, string.format("  Username: %s", config_info.username))
+    end
+
+    -- Display authentication info
+    table.insert(result_lines, "  Authentication:")
+    if config_info.password and config_info.password ~= "None" then
+      table.insert(result_lines, "    Type: Password")
+      table.insert(result_lines, "    Status: ✓ Configured")
+    elseif config_info.private_key_path and config_info.private_key_path ~= "None" then
+      table.insert(result_lines, "    Type: Private Key")
+      table.insert(result_lines, string.format("    Path: %s", config_info.private_key_path))
+      table.insert(result_lines, "    Status: ✓ Configured")
+    else
+      table.insert(result_lines, "    Type: Not configured")
+      table.insert(result_lines, "    Status: ⚠️  Missing authentication")
+    end
+
+    -- Display paths
+    if config_info.remote_path then
+      table.insert(result_lines, string.format("  Remote Path: %s", config_info.remote_path))
+    end
+    if config_info.local_path then
+      table.insert(result_lines, string.format("  Local Path: %s", config_info.local_path))
+    end
+
+    -- Add status indicators
+    table.insert(result_lines, "")
+    table.insert(result_lines, "✅ Configuration: Valid and ready to use")
+
+  else
+    table.insert(result_lines, "")
+    table.insert(result_lines, "❌ No valid configuration found")
+    table.insert(result_lines, "")
+    table.insert(result_lines, "💡 Suggested actions:")
+    table.insert(result_lines, "  1. Run :AstraInit to create a new configuration")
+    table.insert(result_lines, "  2. Check if you have any of these files:")
+    table.insert(result_lines, "     - .astra-settings/settings.toml")
+    table.insert(result_lines, "     - .vscode/sftp.json")
+    table.insert(result_lines, "     - astra.json")
+  end
+
+  -- Display result in a floating window
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, result_lines, false)
+
+  -- Set up a floating window
+  local width = math.min(80, vim.fn.winwidth(0) - 10)
+  local height = math.min(#result_lines, vim.fn.winheight(0) - 10)
+  local win = vim.api.nvim_open_win(0, true, buf, {
+    relative = "editor",
+    width = width,
+    height = height,
+    col = math.floor((vim.fn.winwidth(0) - width) / 2),
+    row = math.floor((vim.fn.winheight(0) - height) / 2),
+    border = "rounded",
+    title = " Astra Configuration Test",
+    title_pos = "center",
+  })
+
+  -- Set up syntax highlighting if possible
+  vim.api.nvim_win_set_option(win, "wrap", false)
+  vim.api.nvim_win_set_option(win, "cursorline", true)
+
+  -- Set up key mappings for the floating window
+  vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<CR>", { noremap = true, silent = true })
+  vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", "<cmd>close<CR>", { noremap = true, silent = true })
+
+  -- Make the buffer modifiable for potential copying
+  vim.api.nvim_buf_set_option(buf, "modifiable", true)
+  vim.api.nvim_buf_set_option(buf, "readonly", false)
+end
+
 function M:parse_version_output(output)
   -- Parse version output for better display
   local lines = vim.split(output, "\n")
   local result = {}
-  
+
   for _, line in ipairs(lines) do
     if line:match("^Version:") or line:match("^Build Date:") or line:match("^Rust Version:") then
       table.insert(result, line)
     end
   end
-  
+
   return #result > 0 and table.concat(result, "\n") or nil
 end
 

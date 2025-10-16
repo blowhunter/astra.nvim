@@ -28,6 +28,9 @@ pub enum AstraError {
 
     #[error("System error: {0}")]
     SystemError(String),
+
+    #[error("Task error: {0}")]
+    TaskError(String),
 }
 
 pub type AstraResult<T> = Result<T, AstraError>;
