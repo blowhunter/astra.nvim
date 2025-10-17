@@ -13,6 +13,7 @@ pub struct SftpConfig {
     pub remote_path: String,
     pub local_path: String,
     pub language: Option<Language>,
+    pub enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +55,7 @@ pub struct AstraTomlConfig {
     pub sftp: SftpTomlConfig,
     pub sync: Option<SyncTomlConfig>,
     pub language: Option<Language>,
+    pub enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,6 +109,7 @@ impl From<AstraTomlConfig> for SftpConfig {
                     .to_string()
             }),
             language: config.language,
+            enabled: config.enabled.or(Some(true)), // TOML configs default to enabled
         }
     }
 }
@@ -125,6 +128,7 @@ impl From<VsCodeSftpConfig> for SftpConfig {
                 .to_string_lossy()
                 .to_string(),
             language: None,
+            enabled: Some(true), // VSCode配置默认启用
         }
     }
 }

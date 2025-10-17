@@ -62,8 +62,8 @@ impl ConfigReader {
     pub fn read_config(&self) -> AstraResult<SftpConfig> {
         // Try to read configurations in this order:
         // 1. .astra-settings/settings.toml
-        // 2. .vscode/sftp.json
-        // 3. astra.json (existing format)
+        // 2. astra.json (existing format)
+        // 3. .vscode/sftp.json
 
         // If base_dir is already a file path (not a directory), treat it as a config file
         if self.base_dir.ends_with(".json") || self.base_dir.ends_with(".toml") {
@@ -115,10 +115,10 @@ impl ConfigReader {
             if let Ok(config) = project_reader.read_astra_toml_config() {
                 return Ok(config);
             }
-            if let Ok(config) = project_reader.read_vscode_sftp_config() {
+            if let Ok(config) = project_reader.read_legacy_astra_config() {
                 return Ok(config);
             }
-            if let Ok(config) = project_reader.read_legacy_astra_config() {
+            if let Ok(config) = project_reader.read_vscode_sftp_config() {
                 return Ok(config);
             }
         }
@@ -128,11 +128,11 @@ impl ConfigReader {
             return Ok(config);
         }
 
-        if let Ok(config) = self.read_vscode_sftp_config() {
+        if let Ok(config) = self.read_legacy_astra_config() {
             return Ok(config);
         }
 
-        if let Ok(config) = self.read_legacy_astra_config() {
+        if let Ok(config) = self.read_vscode_sftp_config() {
             return Ok(config);
         }
 
@@ -248,6 +248,11 @@ impl ConfigReader {
         // Set default language if not specified
         if config.language.is_none() {
             config.language = Some(crate::i18n::detect_language());
+        }
+
+        // Set default enabled status if not specified
+        if config.enabled.is_none() {
+            config.enabled = Some(true); // Legacy configs default to enabled
         }
 
         // Expand ~ in paths

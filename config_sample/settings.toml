@@ -1,0 +1,39 @@
+# Astra.nvim TOML 配置文件样例
+# 将此文件复制到你的项目根目录下的 .astra-settings/settings.toml
+
+# 插件启用状态（可选）
+enabled = true                         # 插件启用开关，默认为true
+
+# 语言设置（可选）
+language = "zh"                        # 界面语言：zh, en, ja, ko, es, fr, de, ru
+
+[sftp]
+# SFTP服务器连接配置
+host = "your-server.com"              # 服务器地址
+port = 22                              # SSH端口，默认22
+username = "your-username"             # 登录用户名
+
+# 认证方式（二选一，或都不提供使用系统默认）
+password = "your-password"             # 密码认证（可选）
+# private_key_path = "~/.ssh/id_rsa"  # 私钥文件路径（可选）
+
+# 路径配置
+remote_path = "/remote/project/path"   # 远程项目路径
+local_path = "/local/project/path"     # 本地项目路径（可选，默认为当前目录）
+
+[sync]
+# 同步选项配置
+auto_sync = true                       # 启用自动同步
+sync_on_save = true                    # 保存时自动同步
+sync_interval = 30000                  # 自动同步间隔（毫秒），默认30秒
+
+# 高级配置（可选）
+[advanced]
+# 连接超时设置（秒）
+connect_timeout = 30
+# 操作超时设置（秒）
+operation_timeout = 300
+# 并发传输数量限制
+max_concurrent_transfers = 5
+# 是否启用详细日志输出
+verbose_logging = false

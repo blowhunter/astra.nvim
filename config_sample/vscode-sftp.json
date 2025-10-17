@@ -1,0 +1,11 @@
+{
+  "name": "Astra.nvim Project",
+  "host": "your-server.com",
+  "protocol": "sftp",
+  "port": 22,
+  "username": "your-username",
+  "password": "your-password",
+  "privateKeyPath": "~/.ssh/id_rsa",
+  "remotePath": "/remote/project/path",
+  "uploadOnSave": true
+}

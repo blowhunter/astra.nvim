@@ -31,22 +31,25 @@ function M.setup(opts)
   -- Store configuration status for command availability
   M.has_config = (config ~= nil)
 
-  -- Only initialize commands and enable features if configuration is available
-  if config then
+  -- Check if configuration exists and is enabled
+  local is_config_enabled = config and config.enabled ~= false
+
+  -- Only initialize commands and enable features if configuration is available and enabled
+  if is_config_enabled then
     M:initialize_commands()
-    
+
     -- Enable sync features from configuration
     if config.auto_sync then
       M:start_auto_sync()
     end
-    
+
     if config.sync_on_save then
       M:setup_autocmds()
     end
-    
+
     vim.notify("Astra: Configuration loaded successfully", vim.log.levels.INFO)
   else
-    -- Only initialize the AstraInit command when no configuration exists
+    -- Always initialize basic commands for configuration management
     vim.api.nvim_create_user_command("AstraInit", function()
       M:init_config()
     end, { desc = "Initialize Astra configuration" })
@@ -55,8 +58,17 @@ function M.setup(opts)
     vim.api.nvim_create_user_command("AstraConfigTest", function()
       M:test_config()
     end, { desc = "Test configuration discovery and show detailed parsing results" })
-    
-    vim.notify("Astra: No configuration found. Use :AstraInit to create configuration", vim.log.levels.INFO)
+
+    vim.api.nvim_create_user_command("AstraEnable", function()
+      M:enable_plugin()
+    end, { desc = "Enable Astra plugin" })
+
+    -- Show plugin disabled notification
+    if config and config.enabled == false then
+      M:show_plugin_disabled_notification()
+    else
+      vim.notify("Astra: No configuration found. Use :AstraInit to create configuration", vim.log.levels.INFO)
+    end
   end
 end
 
@@ -160,7 +172,15 @@ function M:parse_config_output(output)
   config.sync_on_save = output:match("Sync on save: ([^\n]+)") == "true"
   local sync_interval_str = output:match("Sync interval: ([^\n]+)") or "30000"
   config.sync_interval = tonumber(sync_interval_str) or 30000
-  
+
+  -- Extract enabled status
+  local enabled_str = output:match("Enabled: ([^\n]+)")
+  if enabled_str then
+    config.enabled = enabled_str == "true"
+  else
+    config.enabled = true -- Default to enabled if not specified
+  end
+
   return config
 end
 
@@ -967,6 +987,78 @@ function M:parse_version_output(output)
   end
 
   return #result > 0 and table.concat(result, "\n") or nil
+end
+
+-- Enable the plugin by setting enabled = true in configuration
+function M:enable_plugin()
+  local config = self:discover_configuration()
+  if not config then
+    vim.notify("Astra: No configuration found. Please run :AstraInit to create configuration", vim.log.levels.ERROR)
+    return
+  end
+
+  -- For now, provide instructions on how to enable the plugin
+  -- In a future version, this could automatically modify the config file
+  local message = table.concat({
+    "To enable Astra.nvim plugin, please edit your configuration file:",
+    "",
+    "For TOML configuration (.astra-settings/settings.toml):",
+    "  enabled = true",
+    "",
+    "For JSON configuration (astra.json):",
+    "  \"enabled\": true,",
+    "",
+    "After modifying the configuration, restart Neovim or run :AstraRefreshConfig"
+  }, "\n")
+
+  -- Show the message in a floating window
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, vim.split(message, "\n"), false)
+
+  local width = math.min(60, vim.fn.winwidth(0) - 10)
+  local height = #vim.split(message, "\n") + 2
+  local win = vim.api.nvim_open_win(0, true, buf, {
+    relative = "editor",
+    width = width,
+    height = height,
+    col = math.floor((vim.fn.winwidth(0) - width) / 2),
+    row = math.floor((vim.fn.winheight(0) - height) / 2),
+    border = "rounded",
+    title = " Enable Astra.nvim Plugin",
+    title_pos = "center",
+  })
+
+  vim.api.nvim_win_set_option(win, "wrap", false)
+  vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<CR>", { noremap = true, silent = true })
+  vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", "<cmd>close<CR>", { noremap = true, silent = true })
+  vim.api.nvim_buf_set_option(buf, "modifiable", false)
+  vim.api.nvim_buf_set_option(buf, "readonly", true)
+end
+
+-- Show plugin disabled notification (only shown once per Neovim session)
+function M:show_plugin_disabled_notification()
+  -- Check if we've already shown this notification in this session
+  if vim.g.astra_disabled_shown then
+    return
+  end
+
+  vim.g.astra_disabled_shown = true
+
+  local message = table.concat({
+    "⚠️  Astra.nvim 插件已禁用",
+    "",
+    "插件已配置但被禁用。如需启用，请编辑配置文件设置 enabled = true",
+    "或运行 :AstraEnable 查看详细说明",
+    "",
+    "如需创建新配置，请运行 :AstraInit"
+  }, "\n")
+
+  vim.schedule(function()
+    vim.notify(message, vim.log.levels.WARN, {
+      title = "Astra.nvim",
+      timeout = 10000, -- Show for 10 seconds
+    })
+  end)
 end
 
 return M

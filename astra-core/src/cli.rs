@@ -164,6 +164,7 @@ async fn init_config(config_path: &str) -> AstraResult<()> {
             .unwrap()
             .to_string(),
         language: Some(language),
+        enabled: Some(true),
     };
 
     let config_json = serde_json::to_string_pretty(&default_config)?;
@@ -451,6 +452,7 @@ async fn test_config(config_path: Option<&str>) -> AstraResult<()> {
             } else {
                 println!("Private key path: None");
             }
+            println!("Enabled: {}", config.enabled.unwrap_or(true));
         }
         Err(e) => {
             let error_msg = crate::i18n::t_format("cli.config_error", &language, &[&e.to_string()]);
