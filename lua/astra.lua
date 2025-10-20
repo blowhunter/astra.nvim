@@ -6,6 +6,148 @@ M.binary_path = vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim/astra-core/ta
 M.static_binary_path = vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim/astra-core/target/x86_64-unknown-linux-musl/release/astra-core")
 M.config_cache = nil
 M.last_config_check = 0
+M.sync_queue = {}
+M.sync_queue_running = false
+M.last_sync_errors = {}
+M.notification_history = {}
+M.notification_queue = {}
+M.notification_running = false
+
+-- LazyVim风格通知管理
+local notification_config = {
+  max_history = 10,
+  display_duration = 3000, -- 3秒显示时间
+  fade_duration = 500, -- 0.5秒淡出时间
+  position = "bottom_right",
+}
+
+-- 创建浮动通知窗口
+local function create_floating_notification(content, level)
+  level = level or vim.log.levels.INFO
+  local width = math.min(60, vim.fn.strdisplaywidth(content) + 4)
+  local height = 3
+
+  -- 计算位置（右下角）
+  local ui = vim.api.nvim_list_uis()[1]
+  local win_width = ui.width
+  local win_height = ui.height
+
+  local col = win_width - width - 2
+  local row = win_height - height - 3
+
+  -- 创建buffer
+  local buf = vim.api.nvim_create_buf(false, true)
+
+  -- 设置buffer内容
+  local lines = {
+    " " .. content .. " ",
+    "",
+  }
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_buf_set_option(buf, "modifiable", false)
+
+  -- 设置高亮
+  local hl_group = "AstraNotification" .. (level == vim.log.levels.ERROR and "Error" or
+                                            level == vim.log.levels.WARN and "Warn" or "Info")
+
+  -- 定义高亮组
+  vim.api.nvim_set_hl(0, hl_group, {
+    fg = (level == vim.log.levels.ERROR and "#ff6b6b" or
+          level == vim.log.levels.WARN and "#feca57" or "#48cae4"),
+    bg = "#1e1e2e",
+    bold = true,
+  })
+
+  -- 设置buffer高亮
+  vim.api.nvim_buf_add_highlight(buf, 0, hl_group, 0, 0, -1)
+
+  -- 创建浮动窗口
+  local win = vim.api.nvim_open_win(buf, false, {
+    relative = "editor",
+    width = width,
+    height = height,
+    col = col,
+    row = row,
+    style = "minimal",
+    border = "rounded",
+    title = " Astra.nvim ",
+    title_pos = "center",
+  })
+
+  -- 设置窗口选项
+  vim.api.nvim_win_set_option(win, "winhl", "Normal:Normal,FloatBorder:FloatBorder")
+  vim.api.nvim_win_set_option(win, "winblend", 10)
+
+  return win, buf
+end
+
+-- 添加通知到队列
+local function add_notification_to_queue(content, level)
+  table.insert(M.notification_queue, {
+    content = content,
+    level = level,
+    timestamp = vim.loop.hrtime(),
+  })
+
+  -- 限制历史记录长度
+  if #M.notification_queue > notification_config.max_history then
+    table.remove(M.notification_queue, 1)
+  end
+
+  -- 如果没有正在显示的通知，立即显示
+  if not M.notification_running then
+    M:process_notification_queue()
+  end
+end
+
+-- 处理通知队列
+M.process_notification_queue = function()
+  if #M.notification_queue == 0 then
+    M.notification_running = false
+    return
+  end
+
+  M.notification_running = true
+  local notification = table.remove(M.notification_queue, 1)
+
+  -- 显示通知
+  local win, buf = create_floating_notification(notification.content, notification.level)
+
+  -- 设置自动关闭定时器
+  local close_timer = vim.loop.new_timer()
+  close_timer:start(notification_config.display_duration, 0, function()
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_close(win, false)
+    end
+    if vim.api.nvim_buf_is_valid(buf) then
+      vim.api.nvim_buf_delete(buf, {force = true})
+    end
+    close_timer:close()
+
+    -- 处理下一个通知
+    vim.schedule(function()
+      M:process_notification_queue()
+    end)
+  end)
+end
+
+-- 发送LazyVim风格通知
+M.show_lazyvim_notification = function(content, level)
+  level = level or vim.log.levels.INFO
+
+  -- 使用LazyVim的vim.notify如果可用
+  if vim.notify and vim.notify ~= print then
+    vim.notify(content, level, {
+      title = "Astra.nvim",
+      icon = (level == vim.log.levels.ERROR and "❌" or
+              level == vim.log.levels.WARN and "⚠️" or "🚀"),
+      timeout = notification_config.display_duration,
+    })
+  else
+    -- 回退到浮动窗口通知
+    add_notification_to_queue(content, level)
+  end
+end
 
 function M.setup(opts)
   opts = opts or {}
@@ -460,6 +602,26 @@ function M:initialize_commands()
   vim.api.nvim_create_user_command("AstraConfigTest", function()
     M:test_config()
   end, { desc = "Test configuration discovery and show detailed parsing results" })
+
+  vim.api.nvim_create_user_command("AstraConfigInfo", function()
+    M:show_config_info()
+  end, { desc = "Show current loaded configuration information" })
+
+  vim.api.nvim_create_user_command("AstraInfo", function()
+    M:show_config_info()
+  end, { desc = "Show current loaded configuration information (alias)" })
+
+  vim.api.nvim_create_user_command("AstraSyncStatus", function()
+    M:show_sync_status()
+  end, { desc = "Show sync queue status and error history" })
+
+  vim.api.nvim_create_user_command("AstraClearQueue", function()
+    M:clear_sync_queue()
+  end, { desc = "Clear pending sync uploads" })
+
+  vim.api.nvim_create_user_command("AstraTestNotification", function()
+    M:test_notifications()
+  end, { desc = "Test LazyVim-style notification system" })
 end
 
 function M:init_config()
@@ -583,40 +745,105 @@ function M:upload_file(local_path, remote_path)
     local_path = vim.fn.fnamemodify(local_path, ":p")
   end
 
+  -- Create a unique job ID for this upload
+  local job_id = local_path .. ":" .. remote_path
+  local current_time = vim.loop.hrtime() / 1000000000
+
+  -- Check if this file had recent errors (implement exponential backoff)
+  local error_info = M.last_sync_errors[job_id]
+  if error_info then
+    local time_since_error = current_time - error_info.last_error_time
+    local backoff_delay = math.min(300, math.exp(error_info.error_count) * 2) -- Max 5 minutes
+
+    if time_since_error < backoff_delay then
+      local remaining_wait = math.ceil(backoff_delay - time_since_error)
+      vim.notify(string.format("Astra: Upload delayed due to recent errors. Retrying in %d seconds...", remaining_wait), vim.log.levels.WARN)
+      return
+    end
+  end
+
   local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
   local cmd = string.format(
-    "cd %s && %s upload --local %s --remote %s",
+    "timeout 30s cd %s && %s upload --local %s --remote %s",
     self.core_path,
     binary_path,
     local_path,
     remote_path
   )
 
-  vim.notify("Astra: Uploading file in background...\n" .. local_path .. " -> " .. remote_path, vim.log.levels.INFO)
+  -- 使用LazyVim风格通知开始上传
+  M.show_lazyvim_notification("🚀 Uploading: " .. vim.fn.fnamemodify(local_path, ":t"), vim.log.levels.INFO)
 
-  vim.fn.jobstart(cmd, {
+  local job_handle = vim.fn.jobstart(cmd, {
     stdout_buffered = true,
     stderr_buffered = true,
     on_stdout = function(_, data)
       if data and #data > 0 then
         local output = table.concat(data, "\n")
         if output:match("successfully") or output:match("completed") then
-          vim.notify("Astra: File uploaded successfully\n" .. local_path .. " -> " .. remote_path, vim.log.levels.INFO)
+          -- 使用LazyVim风格通知成功上传
+          M.show_lazyvim_notification("✅ Uploaded: " .. vim.fn.fnamemodify(local_path, ":t"), vim.log.levels.INFO)
+          -- Clear error history on success
+          M.last_sync_errors[job_id] = nil
         end
       end
     end,
     on_stderr = function(_, data)
       if data and #data > 0 then
         local error_output = table.concat(data, "\n")
-        vim.notify("Astra: Upload error\n" .. error_output, vim.log.levels.ERROR)
+
+        -- Classify error types
+        local is_timeout = error_output:match("timeout") or error_output:match("Timed out")
+        local is_connection_error = error_output:match("connection refused") or error_output:match("network is unreachable") or error_output:match("no route to host")
+        local is_auth_error = error_output:match("authentication failed") or error_output:match("permission denied")
+
+        -- Update error tracking
+        if not M.last_sync_errors[job_id] then
+          M.last_sync_errors[job_id] = { error_count = 0, last_error_time = 0 }
+        end
+        M.last_sync_errors[job_id].error_count = M.last_sync_errors[job_id].error_count + 1
+        M.last_sync_errors[job_id].last_error_time = current_time
+
+        -- Provide user-friendly error messages
+        local error_msg = "Astra: Upload error"
+        if is_timeout then
+          error_msg = "Astra: Upload timeout - server may be unreachable or slow to respond"
+        elseif is_connection_error then
+          error_msg = "Astra: Connection failed - server may be down or network issues"
+        elseif is_auth_error then
+          error_msg = "Astra: Authentication failed - check your credentials"
+        end
+
+        -- 使用LazyVim风格通知上传错误
+        M.show_lazyvim_notification("❌ Upload failed: " .. vim.fn.fnamemodify(local_path, ":t"), vim.log.levels.ERROR)
       end
     end,
-    on_exit = function(_, exit_code)
+    on_exit = function(job_id, exit_code, event_type)
       if exit_code ~= 0 then
-        vim.notify("Astra: Failed to upload file\n" .. local_path .. " -> " .. remote_path, vim.log.levels.ERROR)
+        -- Handle specific exit codes
+        local error_msg = "Astra: Failed to upload file\n" .. local_path .. " -> " .. remote_path
+        if exit_code == 124 then -- timeout exit code
+          error_msg = "Astra: Upload timed out after 30 seconds\n" .. local_path .. " -> " .. remote_path
+        elseif exit_code == 255 then -- network error
+          error_msg = "Astra: Network error during upload\n" .. local_path .. " -> " .. remote_path
+        end
+
+        -- 使用LazyVim风格通知上传失败
+        M.show_lazyvim_notification("❌ Upload failed: " .. vim.fn.fnamemodify(local_path, ":t"), vim.log.levels.ERROR)
+
+        -- Update error tracking for backoff
+        if not M.last_sync_errors[job_id] then
+          M.last_sync_errors[job_id] = { error_count = 1, last_error_time = current_time }
+        else
+          M.last_sync_errors[job_id].error_count = M.last_sync_errors[job_id].error_count + 1
+          M.last_sync_errors[job_id].last_error_time = current_time
+        end
       end
     end,
   })
+
+  -- Store job handle for potential cancellation
+  return job_handle
 end
 
 function M:download_file(remote_path, local_path)
@@ -640,7 +867,8 @@ function M:download_file(remote_path, local_path)
     local_path
   )
 
-  vim.notify("Astra: Downloading file in background...\n" .. remote_path .. " -> " .. local_path, vim.log.levels.INFO)
+  -- 使用LazyVim风格通知开始下载
+  M.show_lazyvim_notification("📥 Downloading: " .. vim.fn.fnamemodify(remote_path, ":t"), vim.log.levels.INFO)
 
   vim.fn.jobstart(cmd, {
     stdout_buffered = true,
@@ -649,19 +877,22 @@ function M:download_file(remote_path, local_path)
       if data and #data > 0 then
         local output = table.concat(data, "\n")
         if output:match("successfully") or output:match("completed") then
-          vim.notify("Astra: File downloaded successfully\n" .. remote_path .. " -> " .. local_path, vim.log.levels.INFO)
+          -- 使用LazyVim风格通知成功下载
+          M.show_lazyvim_notification("✅ Downloaded: " .. vim.fn.fnamemodify(remote_path, ":t"), vim.log.levels.INFO)
         end
       end
     end,
     on_stderr = function(_, data)
       if data and #data > 0 then
         local error_output = table.concat(data, "\n")
-        vim.notify("Astra: Download error\n" .. error_output, vim.log.levels.ERROR)
+        -- 使用LazyVim风格通知下载错误
+        M.show_lazyvim_notification("❌ Download failed: " .. vim.fn.fnamemodify(remote_path, ":t"), vim.log.levels.ERROR)
       end
     end,
     on_exit = function(_, exit_code)
       if exit_code ~= 0 then
-        vim.notify("Astra: Failed to download file\n" .. remote_path .. " -> " .. local_path, vim.log.levels.ERROR)
+        -- 使用LazyVim风格通知下载失败
+        M.show_lazyvim_notification("❌ Download failed: " .. vim.fn.fnamemodify(remote_path, ":t"), vim.log.levels.ERROR)
       end
     end,
   })
@@ -710,19 +941,90 @@ function M:sync_single_file(file_path)
 
   local remote_path = M:get_remote_path(file_path)
   if remote_path then
-    -- Debounce: avoid multiple syncs for the same file within short time
+    -- Enhanced debounce with file-specific tracking
     local file_key = file_path .. ":" .. remote_path
     local current_time = vim.loop.hrtime() / 1000000000 -- Convert to seconds
 
-    if M.sync_debounce_time and (current_time - M.sync_debounce_time) < 2 then
-      return -- Skip if sync was attempted within last 2 seconds
+    -- Check if this specific file was recently synced
+    local last_sync_time = M.sync_debounce_times and M.sync_debounce_times[file_key]
+    if last_sync_time and (current_time - last_sync_time) < 2 then
+      return -- Skip if this specific file was synced within last 2 seconds
     end
 
-    M.sync_debounce_time = current_time
-    M:upload_file(file_path, remote_path)
+    -- Initialize debounce tracking if needed
+    if not M.sync_debounce_times then
+      M.sync_debounce_times = {}
+    end
+    M.sync_debounce_times[file_key] = current_time
+
+    -- Add to sync queue with priority
+    local sync_item = {
+      file_path = file_path,
+      remote_path = remote_path,
+      timestamp = current_time,
+      file_key = file_key
+    }
+
+    table.insert(M.sync_queue, sync_item)
+
+    -- Process queue if not already running
+    if not M.sync_queue_running then
+      M:process_sync_queue()
+    end
   else
     vim.notify("Astra: Cannot determine remote path for " .. file_path, vim.log.levels.ERROR)
   end
+end
+
+-- Process sync queue with concurrency control
+function M:process_sync_queue()
+  if M.sync_queue_running or #M.sync_queue == 0 then
+    return
+  end
+
+  M.sync_queue_running = true
+
+  -- Process queue items one by one
+  local function process_next()
+    if #M.sync_queue == 0 then
+      M.sync_queue_running = false
+      return
+    end
+
+    local sync_item = table.remove(M.sync_queue, 1)
+    local file_key = sync_item.file_key
+
+    -- Check if we have recent errors for this file
+    local error_info = M.last_sync_errors[file_key]
+    local current_time = vim.loop.hrtime() / 1000000000
+
+    if error_info then
+      local time_since_error = current_time - error_info.last_error_time
+      local backoff_delay = math.min(300, math.exp(error_info.error_count) * 2) -- Max 5 minutes
+
+      if time_since_error < backoff_delay then
+        -- Skip this item and process next
+        vim.defer_fn(process_next, 100) -- Small delay before next item
+        return
+      end
+    end
+
+    -- Perform the upload
+    M:upload_file(sync_item.file_path, sync_item.remote_path)
+
+    -- Wait a bit before processing next item to avoid overwhelming the server
+    vim.defer_fn(process_next, 500) -- 500ms delay between uploads
+  end
+
+  -- Start processing
+  process_next()
+end
+
+-- Clear sync queue (useful for stopping all pending uploads)
+function M:clear_sync_queue()
+  M.sync_queue = {}
+  M.sync_queue_running = false
+  vim.notify("Astra: Sync queue cleared", vim.log.levels.INFO)
 end
 
 function M:stop_auto_sync()
@@ -1059,6 +1361,414 @@ function M:show_plugin_disabled_notification()
       timeout = 10000, -- Show for 10 seconds
     })
   end)
+end
+
+-- Show current loaded configuration information
+function M:show_config_info()
+  local config = self:discover_configuration()
+  local cwd = vim.fn.getcwd()
+
+  -- Check for configuration files
+  local toml_path = cwd .. "/.astra-settings/settings.toml"
+  local vscode_path = cwd .. "/.vscode/sftp.json"
+  local json_path = cwd .. "/astra.json"
+
+  local has_toml = vim.loop.fs_stat(toml_path) ~= nil
+  local has_vscode = vim.loop.fs_stat(vscode_path) ~= nil
+  local has_json = vim.loop.fs_stat(json_path) ~= nil
+
+  local config_info = {}
+
+  -- Header
+  table.insert(config_info, "📋 Astra.nvim Configuration Information")
+  table.insert(config_info, string.rep("─", 50))
+  table.insert(config_info, "")
+
+  -- Configuration file information
+  table.insert(config_info, "📁 Configuration Files:")
+  if has_toml then
+    table.insert(config_info, string.format("  ✓ TOML: .astra-settings/settings.toml"))
+  end
+  if has_json then
+    table.insert(config_info, string.format("  ✓ JSON: astra.json"))
+  end
+  if has_vscode then
+    table.insert(config_info, string.format("  ✓ VSCode: .vscode/sftp.json"))
+  end
+  if not (has_toml or has_json or has_vscode) then
+    table.insert(config_info, "  ❌ No configuration files found")
+  end
+  table.insert(config_info, "")
+
+  if config then
+    -- Plugin status
+    table.insert(config_info, "🔌 Plugin Status:")
+    local status_icon = config.enabled and "✅ Enabled" or "❌ Disabled"
+    local status_color = config.enabled and "Success" or "Error"
+    table.insert(config_info, string.format("  Status: %s", status_icon))
+    table.insert(config_info, string.format("  Commands: %s", config.enabled and "Available" or "Disabled"))
+    table.insert(config_info, "")
+
+    -- Connection information
+    table.insert(config_info, "🌐 Connection Information:")
+    table.insert(config_info, string.format("  Host: %s", config.host or "Not configured"))
+    table.insert(config_info, string.format("  Port: %d", config.port or 22))
+    table.insert(config_info, string.format("  Username: %s", config.username or "Not configured"))
+    table.insert(config_info, "")
+
+    -- Authentication
+    table.insert(config_info, "🔐 Authentication:")
+    if config.password then
+      table.insert(config_info, "  Type: Password")
+      table.insert(config_info, "  Status: ✓ Configured")
+    elseif config.private_key_path then
+      table.insert(config_info, "  Type: Private Key")
+      table.insert(config_info, string.format("  Path: %s", config.private_key_path))
+      table.insert(config_info, "  Status: ✓ Configured")
+    else
+      table.insert(config_info, "  Type: Not configured")
+      table.insert(config_info, "  Status: ⚠️  Missing authentication")
+    end
+    table.insert(config_info, "")
+
+    -- Path information
+    table.insert(config_info, "📂 Path Information:")
+    table.insert(config_info, string.format("  Remote: %s", config.remote_path or "Not configured"))
+    table.insert(config_info, string.format("  Local:  %s", config.local_path or vim.fn.getcwd()))
+    table.insert(config_info, "")
+
+    -- Sync settings (if available)
+    if config.auto_sync ~= nil or config.sync_on_save ~= nil then
+      table.insert(config_info, "🔄 Sync Settings:")
+      if config.auto_sync ~= nil then
+        local auto_sync_icon = config.auto_sync and "✅" or "❌"
+        table.insert(config_info, string.format("  Auto Sync: %s %s", auto_sync_icon, config.auto_sync and "Enabled" or "Disabled"))
+      end
+      if config.sync_on_save ~= nil then
+        local sync_on_save_icon = config.sync_on_save and "✅" or "❌"
+        table.insert(config_info, string.format("  Sync on Save: %s %s", sync_on_save_icon, config.sync_on_save and "Enabled" or "Disabled"))
+      end
+      if config.sync_interval then
+        table.insert(config_info, string.format("  Sync Interval: %d seconds", config.sync_interval / 1000))
+      end
+      table.insert(config_info, "")
+    end
+
+    -- Available commands
+    table.insert(config_info, "⚡ Available Commands:")
+    table.insert(config_info, "  :AstraSync [mode]     - Synchronize files")
+    table.insert(config_info, "  :AstraStatus          - Check sync status")
+    table.insert(config_info, "  :AstraUpload [paths]  - Upload files")
+    table.insert(config_info, "  :AstraDownload [paths] - Download files")
+    table.insert(config_info, "  :AstraUploadCurrent   - Upload current file")
+    table.insert(config_info, "  :AstraRefreshConfig   - Refresh configuration")
+    table.insert(config_info, "  :AstraConfigTest      - Test configuration")
+    table.insert(config_info, "  :AstraConfigInfo      - Show this information")
+    table.insert(config_info, "  :AstraSyncStatus      - Show sync queue status")
+    table.insert(config_info, "  :AstraClearQueue      - Clear pending uploads")
+    table.insert(config_info, "")
+
+    -- Overall status
+    table.insert(config_info, string.rep("─", 50))
+    if config.enabled then
+      table.insert(config_info, "✅ Configuration: Ready to use")
+    else
+      table.insert(config_info, "⚠️  Configuration: Plugin is disabled")
+      table.insert(config_info, "")
+      table.insert(config_info, "To enable the plugin:")
+      table.insert(config_info, "  1. Edit your configuration file")
+      table.insert(config_info, "  2. Set 'enabled = true'")
+      table.insert(config_info, "  3. Run ':AstraRefreshConfig' or restart Neovim")
+    end
+
+  else
+    -- No configuration found
+    table.insert(config_info, "❌ Configuration Status: No valid configuration found")
+    table.insert(config_info, "")
+    table.insert(config_info, "💡 Getting Started:")
+    table.insert(config_info, "  1. Run ':AstraInit' to create a new configuration")
+    table.insert(config_info, "  2. Or create one of these files manually:")
+    table.insert(config_info, "     • .astra-settings/settings.toml (recommended)")
+    table.insert(config_info, "     • astra.json (legacy format)")
+    table.insert(config_info, "     • .vscode/sftp.json (VSCode format)")
+    table.insert(config_info, "")
+    table.insert(config_info, "📖 For help, see: ':help astra-nvim'")
+  end
+
+  -- Display in a floating window
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, config_info, false)
+
+  -- Set up syntax highlighting
+  vim.api.nvim_buf_set_option(buf, "filetype", "text")
+
+  -- Calculate window dimensions
+  local width = math.min(80, vim.fn.winwidth(0) - 10)
+  local height = math.min(#config_info + 2, vim.fn.winheight(0) - 5)
+
+  local win = vim.api.nvim_open_win(0, true, buf, {
+    relative = "editor",
+    width = width,
+    height = height,
+    col = math.floor((vim.fn.winwidth(0) - width) / 2),
+    row = math.floor((vim.fn.winheight(0) - height) / 2),
+    border = "rounded",
+    title = " Astra Configuration Info",
+    title_pos = "center",
+    style = "minimal",
+  })
+
+  -- Configure window options
+  vim.api.nvim_win_set_option(win, "wrap", false)
+  vim.api.nvim_win_set_option(win, "cursorline", true)
+  vim.api.nvim_win_set_option(win, "number", false)
+  vim.api.nvim_win_set_option(win, "relativenumber", false)
+
+  -- Set up key mappings
+  local opts = { noremap = true, silent = true }
+  vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<CR>", opts)
+  vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", "<cmd>close<CR>", opts)
+  vim.api.nvim_buf_set_keymap(buf, "n", "<C-c>", "<cmd>close<CR>", opts)
+
+  -- Make buffer read-only
+  vim.api.nvim_buf_set_option(buf, "modifiable", false)
+  vim.api.nvim_buf_set_option(buf, "readonly", true)
+
+  -- Highlight important sections
+  vim.schedule(function()
+    -- Highlight headers
+    local ns_id = vim.api.nvim_create_namespace("astra_config_info")
+
+    for i, line in ipairs(config_info) do
+      local line_idx = i - 1
+
+      -- Highlight headers (lines with emoji and :)
+      if line:match("^🔌") or line:match("^🌐") or line:match("^🔐") or line:match("^📂") or line:match("^🔄") or line:match("^⚡") or line:match("^📁") then
+        vim.api.nvim_buf_add_highlight(buf, ns_id, "Title", line_idx, 0, -1)
+      end
+
+      -- Highlight success states
+      if line:match("✅") then
+        vim.api.nvim_buf_add_highlight(buf, ns_id, "String", line_idx, 0, -1)
+      end
+
+      -- Highlight error states
+      if line:match("❌") then
+        vim.api.nvim_buf_add_highlight(buf, ns_id, "Error", line_idx, 0, -1)
+      end
+
+      -- Highlight warning states
+      if line:match("⚠️") then
+        vim.api.nvim_buf_add_highlight(buf, ns_id, "WarningMsg", line_idx, 0, -1)
+      end
+    end
+  end)
+end
+
+-- Show sync queue status and error history
+function M:show_sync_status()
+  local status_info = {}
+
+  -- Header
+  table.insert(status_info, "🔄 Astra.nvim Sync Status")
+  table.insert(status_info, string.rep("─", 50))
+  table.insert(status_info, "")
+
+  -- Queue status
+  table.insert(status_info, "📋 Sync Queue Status:")
+  table.insert(status_info, string.format("  Queue running: %s", M.sync_queue_running and "✅ Yes" or "❌ No"))
+  table.insert(status_info, string.format("  Pending items: %d", #M.sync_queue))
+  table.insert(status_info, "")
+
+  -- Show pending items if any
+  if #M.sync_queue > 0 then
+    table.insert(status_info, "📝 Pending Uploads:")
+    for i, item in ipairs(M.sync_queue) do
+      local file_name = vim.fn.fnamemodify(item.file_path, ":t")
+      local wait_time = math.floor(vim.loop.hrtime() / 1000000000 - item.timestamp)
+      table.insert(status_info, string.format("  %d. %s (waiting %ds)", i, file_name, wait_time))
+    end
+    table.insert(status_info, "")
+  end
+
+  -- Error history
+  local error_count = 0
+  for _ in pairs(M.last_sync_errors) do
+    error_count = error_count + 1
+  end
+
+  table.insert(status_info, "🚨 Error History:")
+  table.insert(status_info, string.format("  Files with errors: %d", error_count))
+
+  if error_count > 0 then
+    table.insert(status_info, "")
+    table.insert(status_info, "Recent Errors:")
+
+    local current_time = vim.loop.hrtime() / 1000000000
+    local sorted_errors = {}
+
+    -- Sort errors by time
+    for file_key, error_info in pairs(M.last_sync_errors) do
+      table.insert(sorted_errors, {
+        file_key = file_key,
+        error_count = error_info.error_count,
+        last_error_time = error_info.last_error_time,
+        time_ago = math.floor(current_time - error_info.last_error_time)
+      })
+    end
+
+    table.sort(sorted_errors, function(a, b)
+      return a.last_error_time > b.last_error_time
+    end)
+
+    -- Show top 10 most recent errors
+    for i, error_data in ipairs(sorted_errors) do
+      if i > 10 then break end
+
+      local file_name = vim.fn.fnamemodify(error_data.file_key, ":t")
+      local status = "⚠️"
+      if error_data.time_ago < 60 then
+        status = "🔴" -- Recent error (within 1 minute)
+      elseif error_data.time_ago < 300 then
+        status = "🟠" -- Recent error (within 5 minutes)
+      else
+        status = "🟡" -- Older error
+      end
+
+      local backoff_info = ""
+      if error_data.error_count > 1 then
+        local backoff_delay = math.min(300, math.exp(error_data.error_count) * 2)
+        local next_retry = math.max(0, backoff_delay - (current_time - error_data.last_error_time))
+        if next_retry > 0 then
+          backoff_info = string.format(" (retry in %ds)", math.ceil(next_retry))
+        end
+      end
+
+      table.insert(status_info, string.format("  %s %s (%d errors, %s ago)%s",
+        status, file_name, error_data.error_count,
+        error_data.time_ago < 60 and math.floor(error_data.time_ago) .. "s" or
+        math.floor(error_data.time_ago / 60) .. "m",
+        backoff_info))
+    end
+  else
+    table.insert(status_info, "  ✅ No recent errors")
+  end
+
+  table.insert(status_info, "")
+
+  -- Configuration status
+  local config = self:discover_configuration()
+  if config then
+    table.insert(status_info, "🔌 Plugin Status:")
+    table.insert(status_info, string.format("  Enabled: %s", config.enabled and "✅ Yes" or "❌ No"))
+    table.insert(status_info, string.format("  Sync on Save: %s", config.sync_on_save and "✅ Yes" or "❌ No"))
+  else
+    table.insert(status_info, "❌ No configuration found")
+  end
+
+  table.insert(status_info, "")
+
+  -- Available actions
+  table.insert(status_info, "⚡ Available Actions:")
+  table.insert(status_info, "  :AstraClearQueue - Clear pending uploads")
+  table.insert(status_info, "  :AstraConfigInfo - Show configuration")
+  table.insert(status_info, "  :AstraSyncStatus - Refresh this status")
+  table.insert(status_info, "")
+
+  -- Display in floating window
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, status_info, false)
+
+  -- Set up syntax highlighting
+  vim.api.nvim_buf_set_option(buf, "filetype", "text")
+
+  -- Calculate window dimensions
+  local width = math.min(80, vim.fn.winwidth(0) - 10)
+  local height = math.min(#status_info + 2, vim.fn.winheight(0) - 5)
+
+  local win = vim.api.nvim_open_win(0, true, buf, {
+    relative = "editor",
+    width = width,
+    height = height,
+    col = math.floor((vim.fn.winwidth(0) - width) / 2),
+    row = math.floor((vim.fn.winheight(0) - height) / 2),
+    border = "rounded",
+    title = " Astra Sync Status",
+    title_pos = "center",
+    style = "minimal",
+  })
+
+  -- Configure window options
+  vim.api.nvim_win_set_option(win, "wrap", false)
+  vim.api.nvim_win_set_option(win, "cursorline", true)
+  vim.api.nvim_win_set_option(win, "number", false)
+  vim.api.nvim_win_set_option(win, "relativenumber", false)
+
+  -- Set up key mappings
+  local opts = { noremap = true, silent = true }
+  vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<CR>", opts)
+  vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", "<cmd>close<CR>", opts)
+  vim.api.nvim_buf_set_keymap(buf, "n", "<C-c>", "<cmd>close<CR>", opts)
+  vim.api.nvim_buf_set_keymap(buf, "n", "r", "<cmd>AstraSyncStatus<CR>", opts) -- Refresh
+  vim.api.nvim_buf_set_keymap(buf, "n", "c", "<cmd>AstraClearQueue<CR>", opts) -- Clear queue
+
+  -- Make buffer read-only
+  vim.api.nvim_buf_set_option(buf, "modifiable", false)
+  vim.api.nvim_buf_set_option(buf, "readonly", true)
+
+  -- Highlight important sections
+  vim.schedule(function()
+    local ns_id = vim.api.nvim_create_namespace("astra_sync_status")
+
+    for i, line in ipairs(status_info) do
+      local line_idx = i - 1
+
+      -- Highlight headers
+      if line:match("^🔄") or line:match("^📋") or line:match("^📝") or line:match("^🚨") or line:match("^⚡") then
+        vim.api.nvim_buf_add_highlight(buf, ns_id, "Title", line_idx, 0, -1)
+      end
+
+      -- Highlight status indicators
+      if line:match("✅") then
+        vim.api.nvim_buf_add_highlight(buf, ns_id, "String", line_idx, 0, -1)
+      elseif line:match("❌") then
+        vim.api.nvim_buf_add_highlight(buf, ns_id, "Error", line_idx, 0, -1)
+      elseif line:match("🔴") or line:match("🟠") then
+        vim.api.nvim_buf_add_highlight(buf, ns_id, "WarningMsg", line_idx, 0, -1)
+      end
+    end
+  end)
+end
+
+-- 测试LazyVim风格通知系统
+M.test_notifications = function()
+  local test_messages = {
+    { content = "🚀 Starting upload test", level = vim.log.levels.INFO },
+    { content = "📥 Downloading file example.txt", level = vim.log.levels.INFO },
+    { content = "✅ Upload completed successfully", level = vim.log.levels.INFO },
+    { content = "⚠️  Connection slow warning", level = vim.log.levels.WARN },
+    { content = "❌ Upload failed example", level = vim.log.levels.ERROR },
+  }
+
+  -- 添加延迟来展示滚动效果
+  local function show_next_notification(index)
+    if index > #test_messages then
+      vim.notify("Notification test completed!", vim.log.levels.INFO, { title = "Astra.nvim" })
+      return
+    end
+
+    local message = test_messages[index]
+    M.show_lazyvim_notification(message.content, message.level)
+
+    -- 1秒后显示下一个通知
+    vim.defer_fn(function()
+      show_next_notification(index + 1)
+    end, 1000)
+  end
+
+  -- 开始测试
+  vim.notify("Starting LazyVim-style notification test...", vim.log.levels.INFO, { title = "Astra.nvim" })
+  show_next_notification(1)
 end
 
 return M

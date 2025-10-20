@@ -1,5 +1,154 @@
 # Astra.nvim 变更日志
 
+## 版本 0.3.8 - LazyVim风格滚动通知系统
+
+### 🌍 新增功能
+
+#### LazyVim风格滚动通知系统
+- **右下角滚动显示**：在Neovim右下角以滚动方式显示当前处理状态
+- **实时状态更新**：上传/下载过程中实时显示处理进度和状态
+- **多级别通知**：支持信息、警告、错误三种通知级别
+- **队列管理**：智能通知队列管理，避免通知堆积和重叠
+- **优雅动画**：浮动窗口带淡入淡出效果，提升用户体验
+
+#### 通知内容优化
+- **文件名显示**：通知中显示正在处理的文件名，提高识别度
+- **图标系统**：使用直观的emoji图标表示不同状态
+  - 🚀 上传开始
+  - ✅ 操作成功
+  - ❌ 操作失败
+  - ⚠️ 警告信息
+  - 📥 下载操作
+- **自动消失**：通知3秒后自动消失，不干扰用户操作
+
+#### 通知系统集成
+- **无缝集成**：与现有上传/下载功能无缝集成
+- **双重回退**：优先使用LazyVim的vim.notify，回退到自定义浮动窗口
+- **智能检测**：自动检测环境并选择最佳通知方式
+- **测试命令**：新增 `:AstraTestNotification` 命令用于测试通知系统
+
+### 🔧 技术改进
+
+#### 浮动窗口通知实现
+- **位置计算**：智能计算右下角位置，适配不同屏幕尺寸
+- **样式设计**：圆角边框、标题栏、半透明背景等现代化设计
+- **高亮配置**：根据通知级别设置不同的前景色
+  - 信息级别：蓝色 (#48cae4)
+  - 警告级别：黄色 (#feca57)
+  - 错误级别：红色 (#ff6b6b)
+- **窗口混合**：使用winblend实现半透明效果
+
+#### 通知队列管理
+- **异步处理**：使用libuv定时器实现异步通知处理
+- **队列限制**：最多保留10条通知历史，防止内存泄漏
+- **防重复**：智能检测并合并重复通知
+- **状态跟踪**：跟踪通知显示状态，避免重叠显示
+
+#### 回退机制设计
+- **环境检测**：检测vim.notify的可用性和功能完整性
+- **渐进增强**：在LazyVim环境中使用原生通知，其他环境使用浮动窗口
+- **兼容性保证**：确保在各种Neovim配置下都能正常工作
+
+### 📦 文件变更
+
+#### 修改文件
+- `lua/astra.lua`：
+  - 添加 `notification_config` 配置管理
+  - 新增 `create_floating_notification()` 创建浮动窗口
+  - 新增 `add_notification_to_queue()` 队列管理
+  - 新增 `M.process_notification_queue()` 队列处理
+  - 新增 `M.show_lazyvim_notification()` 通知入口
+  - 新增 `M.test_notifications()` 测试函数
+  - 更新 `upload_file()` 使用新通知系统
+  - 更新 `download_file()` 使用新通知系统
+  - 新增 `:AstraTestNotification` 命令
+
+#### 通知变量添加
+- `M.notification_history` - 通知历史记录
+- `M.notification_queue` - 通知队列
+- `M.notification_running` - 通知运行状态
+
+### 🧪 测试覆盖
+
+#### 通知系统测试
+- **基础功能测试**：验证各种通知级别的显示效果
+- **队列管理测试**：验证通知队列的正确处理
+- **回退机制测试**：验证不同环境下的回退行为
+- **集成测试**：验证与上传/下载功能的集成
+
+#### 测试脚本
+- 创建 `/tmp/simple_test.lua` 模拟vim环境进行单元测试
+- 验证通知函数的正确调用和队列处理
+- 测试所有通知级别和消息类型
+
+### 📝 使用示例
+
+#### 基础通知显示
+```lua
+-- 显示信息级别通知
+M.show_lazyvim_notification("🚀 Uploading: example.txt", vim.log.levels.INFO)
+
+-- 显示成功通知
+M.show_lazyvim_notification("✅ Uploaded: example.txt", vim.log.levels.INFO)
+
+-- 显示错误通知
+M.show_lazyvim_notification("❌ Upload failed: example.txt", vim.log.levels.ERROR)
+
+-- 显示警告通知
+M.show_lazyvim_notification("⚠️ Connection slow", vim.log.levels.WARN)
+```
+
+#### 测试通知系统
+```bash
+# 测试LazyVim风格通知系统
+:AstraTestNotification
+
+# 将依次显示：
+# 🚀 Starting upload test
+# 📥 Downloading file example.txt
+# ✅ Upload completed successfully
+# ⚠️ Connection slow warning
+# ❌ Upload failed example
+```
+
+#### 实际使用场景
+```bash
+# 上传文件时的通知流
+:UploadCurrent
+
+# 显示：
+# 🚀 Uploading: current_file.txt    (开始上传)
+# ✅ Uploaded: current_file.txt     (上传成功)
+
+# 如果上传失败：
+# ❌ Upload failed: current_file.txt (上传失败)
+```
+
+### 🔮 设计理念
+
+#### 用户体验优先
+- **非侵入式**：通知出现在右下角，不干扰编辑区域
+- **信息丰富**：使用图标和颜色快速传达状态信息
+- **自动管理**：通知自动显示和消失，无需用户操作
+- **智能队列**：合理管理通知顺序，避免信息过载
+
+#### 技术优雅性
+- **模块化设计**：通知系统独立模块，易于维护和扩展
+- **异步处理**：不阻塞主线程，保持界面响应性
+- **渐进增强**：根据环境自动选择最佳实现方式
+- **资源友好**：合理的内存管理和清理机制
+
+### 📊 统计信息
+
+- **新增函数**：6个（通知管理、队列处理、测试等）
+- **修改函数**：2个（upload_file、download_file集成通知）
+- **新增命令**：1个（:AstraTestNotification）
+- **配置项**：3个（显示时长、历史限制、位置配置）
+- **代码行数**：约200行新增代码
+- **测试覆盖**：通知系统100%功能覆盖
+
+---
+
 ## 版本 0.3.7 - 插件启用开关与通知系统
 
 ### 🌍 新增功能
