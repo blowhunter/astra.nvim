@@ -1253,7 +1253,7 @@ function M:display_config_test_result(output)
   -- Set up a floating window
   local width = math.min(80, vim.fn.winwidth(0) - 10)
   local height = math.min(#result_lines, vim.fn.winheight(0) - 10)
-  local win = vim.api.nvim_open_win(0, true, buf, {
+  local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
     width = width,
     height = height,
@@ -1319,7 +1319,7 @@ function M:enable_plugin()
 
   local width = math.min(60, vim.fn.winwidth(0) - 10)
   local height = #vim.split(message, "\n") + 2
-  local win = vim.api.nvim_open_win(0, true, buf, {
+  local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
     width = width,
     height = height,
@@ -1506,7 +1506,7 @@ function M:show_config_info()
   local width = math.min(80, vim.fn.winwidth(0) - 10)
   local height = math.min(#config_info + 2, vim.fn.winheight(0) - 5)
 
-  local win = vim.api.nvim_open_win(0, true, buf, {
+  local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
     width = width,
     height = height,
@@ -1686,7 +1686,7 @@ function M:show_sync_status()
   local width = math.min(80, vim.fn.winwidth(0) - 10)
   local height = math.min(#status_info + 2, vim.fn.winheight(0) - 5)
 
-  local win = vim.api.nvim_open_win(0, true, buf, {
+  local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
     width = width,
     height = height,
