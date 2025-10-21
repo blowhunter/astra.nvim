@@ -1248,7 +1248,7 @@ function M:display_config_test_result(output)
 
   -- Display result in a floating window
   local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, result_lines, false)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, result_lines)
 
   -- Set up a floating window
   local width = math.min(80, vim.fn.winwidth(0) - 10)
@@ -1315,7 +1315,7 @@ function M:enable_plugin()
 
   -- Show the message in a floating window
   local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, vim.split(message, "\n"), false)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(message, "\n"))
 
   local width = math.min(60, vim.fn.winwidth(0) - 10)
   local height = #vim.split(message, "\n") + 2
@@ -1497,7 +1497,7 @@ function M:show_config_info()
 
   -- Display in a floating window
   local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, config_info, false)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, config_info)
 
   -- Set up syntax highlighting
   vim.api.nvim_buf_set_option(buf, "filetype", "text")
@@ -1677,7 +1677,7 @@ function M:show_sync_status()
 
   -- Display in floating window
   local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, status_info, false)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, status_info)
 
   -- Set up syntax highlighting
   vim.api.nvim_buf_set_option(buf, "filetype", "text")
