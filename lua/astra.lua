@@ -256,8 +256,8 @@ function M:discover_configuration()
     return nil
   end
   
-  local cmd = string.format("cd %s && %s config-test 2>/dev/null", self.core_path, binary_path)
-  local output = vim.fn.system(cmd)
+  local cmd = string.format("%s config-test", binary_path)
+  local output = vim.fn.system(cmd, "")  -- Run in current directory
   
   if vim.v.shell_error == 0 then
     -- Parse the config-test output
@@ -623,7 +623,7 @@ end
 
 function M:init_config()
   local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
-  local cmd = string.format("cd %s && %s init", self.core_path, binary_path)
+  local cmd = string.format("%s init", binary_path)
 
   vim.notify("Astra: Initializing configuration...", vim.log.levels.INFO)
 
@@ -678,7 +678,7 @@ function M:sync_files(mode)
   end
 
   local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
-  local cmd = string.format("cd %s && %s sync --mode %s", self.core_path, binary_path, mode)
+  local cmd = string.format("%s sync --mode %s", binary_path, mode)
 
   vim.notify("Astra: Starting sync operation in background...", vim.log.levels.INFO)
 
@@ -719,7 +719,7 @@ function M:check_status()
   end
   
   local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
-  local cmd = string.format("cd %s && %s status", self.core_path, binary_path)
+  local cmd = string.format("%s status", binary_path)
 
   local output = vim.fn.system(cmd)
 
@@ -761,8 +761,7 @@ function M:upload_file(local_path, remote_path)
 
   local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
   local cmd = string.format(
-    "timeout 30s cd %s && %s upload --local %s --remote %s",
-    self.core_path,
+    "timeout 30s %s upload --local %s --remote %s",
     binary_path,
     local_path,
     remote_path
@@ -857,8 +856,7 @@ function M:download_file(remote_path, local_path)
 
   local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
   local cmd = string.format(
-    "cd %s && %s download --remote %s --local %s",
-    self.core_path,
+    "%s download --remote %s --local %s",
     binary_path,
     remote_path,
     local_path
@@ -1034,7 +1032,7 @@ end
 
 function M:show_version()
   local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
-  local cmd = string.format("cd %s && %s version", self.core_path, binary_path)
+  local cmd = string.format("%s version", binary_path)
   
   local output = vim.fn.system(cmd)
   
@@ -1053,7 +1051,7 @@ end
 
 function M:check_for_updates()
   local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
-  local cmd = string.format("cd %s && %s check-update", self.core_path, binary_path)
+  local cmd = string.format("%s check-update", binary_path)
   
   vim.notify("Astra: Checking for updates...", vim.log.levels.INFO)
   
@@ -1100,7 +1098,7 @@ end
 
 function M:test_config()
   local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
-  local cmd = string.format("cd %s && %s config-test", self.core_path, binary_path)
+  local cmd = string.format("%s config-test", binary_path)
 
   vim.notify("Astra: Testing configuration discovery...", vim.log.levels.INFO)
 
