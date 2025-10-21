@@ -24,16 +24,13 @@ local notification_config = {
 -- 创建浮动通知窗口
 local function create_floating_notification(content, level)
   level = level or vim.log.levels.INFO
-  local width = math.min(60, vim.fn.strdisplaywidth(content) + 4)
-  local height = 3
 
-  -- 计算位置（右下角）
-  local ui = vim.api.nvim_list_uis()[1]
-  local win_width = ui.width
-  local win_height = ui.height
-
-  local col = win_width - width - 2
-  local row = win_height - height - 3
+  -- 使用智能尺寸计算
+  local dims = calculate_notification_dimensions(content, level)
+  local width = dims.width
+  local height = dims.height
+  local col = dims.col
+  local row = dims.row
 
   -- 创建buffer
   local buf = vim.api.nvim_create_buf(false, true)
@@ -1250,15 +1247,18 @@ function M:display_config_test_result(output)
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, result_lines)
 
-  -- Set up a floating window
-  local width = math.min(80, vim.fn.winwidth(0) - 10)
-  local height = math.min(#result_lines, vim.fn.winheight(0) - 10)
+  -- 使用智能窗口尺寸计算
+  local dims = calculate_window_dimensions(result_lines, {
+    min_width = 70,
+    max_width = 120,
+    padding = 8
+  })
   local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
-    width = width,
-    height = height,
-    col = math.floor((vim.fn.winwidth(0) - width) / 2),
-    row = math.floor((vim.fn.winheight(0) - height) / 2),
+    width = dims.width,
+    height = dims.height,
+    col = dims.col,
+    row = dims.row,
     border = "rounded",
     title = " Astra Configuration Test",
     title_pos = "center",
@@ -1317,14 +1317,19 @@ function M:enable_plugin()
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(message, "\n"))
 
-  local width = math.min(60, vim.fn.winwidth(0) - 10)
-  local height = #vim.split(message, "\n") + 2
+  -- 使用智能窗口尺寸计算
+  local message_lines = vim.split(message, "\n")
+  local dims = calculate_window_dimensions(message_lines, {
+    min_width = 60,
+    max_width = 100,
+    padding = 6
+  })
   local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
-    width = width,
-    height = height,
-    col = math.floor((vim.fn.winwidth(0) - width) / 2),
-    row = math.floor((vim.fn.winheight(0) - height) / 2),
+    width = dims.width,
+    height = dims.height,
+    col = dims.col,
+    row = dims.row,
     border = "rounded",
     title = " Enable Astra.nvim Plugin",
     title_pos = "center",
@@ -1502,16 +1507,20 @@ function M:show_config_info()
   -- Set up syntax highlighting
   vim.api.nvim_buf_set_option(buf, "filetype", "text")
 
-  -- Calculate window dimensions
-  local width = math.min(80, vim.fn.winwidth(0) - 10)
-  local height = math.min(#config_info + 2, vim.fn.winheight(0) - 5)
+  -- 使用智能窗口尺寸计算
+  local dims = calculate_window_dimensions(config_info, {
+    min_width = 80,
+    max_width = 140,
+    padding = 12,
+    min_height = 20
+  })
 
   local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
-    width = width,
-    height = height,
-    col = math.floor((vim.fn.winwidth(0) - width) / 2),
-    row = math.floor((vim.fn.winheight(0) - height) / 2),
+    width = dims.width,
+    height = dims.height,
+    col = dims.col,
+    row = dims.row,
     border = "rounded",
     title = " Astra Configuration Info",
     title_pos = "center",
@@ -1682,16 +1691,20 @@ function M:show_sync_status()
   -- Set up syntax highlighting
   vim.api.nvim_buf_set_option(buf, "filetype", "text")
 
-  -- Calculate window dimensions
-  local width = math.min(80, vim.fn.winwidth(0) - 10)
-  local height = math.min(#status_info + 2, vim.fn.winheight(0) - 5)
+  -- 使用智能窗口尺寸计算
+  local dims = calculate_window_dimensions(status_info, {
+    min_width = 80,
+    max_width = 120,
+    padding = 10,
+    min_height = 15
+  })
 
   local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
-    width = width,
-    height = height,
-    col = math.floor((vim.fn.winwidth(0) - width) / 2),
-    row = math.floor((vim.fn.winheight(0) - height) / 2),
+    width = dims.width,
+    height = dims.height,
+    col = dims.col,
+    row = dims.row,
     border = "rounded",
     title = " Astra Sync Status",
     title_pos = "center",
@@ -1769,6 +1782,79 @@ M.test_notifications = function()
   -- 开始测试
   vim.notify("Starting LazyVim-style notification test...", vim.log.levels.INFO, { title = "Astra.nvim" })
   show_next_notification(1)
+end
+
+-- 智能计算浮动窗口尺寸
+local function calculate_window_dimensions(content_lines, opts)
+  opts = opts or {}
+
+  -- 获取主窗口尺寸
+  local main_win_width = vim.fn.winwidth(0)
+  local main_win_height = vim.fn.winheight(0)
+
+  -- 计算内容的最大宽度
+  local max_content_width = 0
+  for _, line in ipairs(content_lines) do
+    local line_width = vim.fn.strdisplaywidth(line)
+    max_content_width = math.max(max_content_width, line_width)
+  end
+
+  -- 设置最小和最大宽度
+  local min_width = opts.min_width or 60
+  local max_width = opts.max_width or math.floor(main_win_width * 0.9)
+
+  -- 添加边距
+  local padding = opts.padding or 10
+  local content_width = max_content_width + padding
+
+  -- 计算最终宽度
+  local width = math.max(min_width, math.min(content_width, max_width))
+
+  -- 计算高度
+  local content_height = #content_lines
+  local min_height = opts.min_height or 10
+  local max_height = opts.max_height or math.floor(main_win_height * 0.9)
+
+  local height = math.max(min_height, math.min(content_height + 2, max_height))
+
+  -- 计算居中位置
+  local col = math.floor((main_win_width - width) / 2)
+  local row = math.floor((main_win_height - height) / 2)
+
+  return {
+    width = width,
+    height = height,
+    col = col,
+    row = row
+  }
+end
+
+-- 为通知窗口创建专门的尺寸计算
+local function calculate_notification_dimensions(content, level)
+  level = level or vim.log.levels.INFO
+
+  -- 计算内容宽度
+  local content_width = vim.fn.strdisplaywidth(content)
+  local min_width = 40
+  local max_width = math.floor(vim.fn.winwidth(0) * 0.4)
+
+  local width = math.max(min_width, math.min(content_width + 8, max_width))
+  local height = 3
+
+  -- 计算右下角位置
+  local ui = vim.api.nvim_list_uis()[1]
+  local win_width = ui.width
+  local win_height = ui.height
+
+  local col = win_width - width - 2
+  local row = win_height - height - 3
+
+  return {
+    width = width,
+    height = height,
+    col = col,
+    row = row
+  }
 end
 
 return M
