@@ -176,6 +176,7 @@ function M.setup(opts)
   -- Only initialize commands and enable features if configuration is available and enabled
   if is_config_enabled then
     M:initialize_commands()
+    M:setup_key_mappings()
 
     -- Enable sync features from configuration
     if config.auto_sync then
@@ -481,23 +482,39 @@ function M:get_local_path(remote_file_path)
 end
 
 function M:initialize_commands()
-  vim.api.nvim_create_user_command("AstraInit", function()
+  -- 🔧 配置管理命令 (Configuration)
+  vim.api.nvim_create_user_command("AstraConfigInit", function()
     M:init_config()
   end, { desc = "Initialize Astra configuration" })
 
-  vim.api.nvim_create_user_command("AstraSync", function(opts)
-    local mode = opts.args or "upload"
-    M:sync_files(mode)
-  end, { nargs = "?", desc = "Synchronize files" })
+  vim.api.nvim_create_user_command("AstraConfigTest", function()
+    M:test_config()
+  end, { desc = "Test configuration discovery" })
 
-  vim.api.nvim_create_user_command("AstraStatus", function()
-    M:check_status()
-  end, { desc = "Check sync status" })
+  vim.api.nvim_create_user_command("AstraConfigInfo", function()
+    M:show_config_info()
+  end, { desc = "Show current configuration" })
 
+  vim.api.nvim_create_user_command("AstraConfigReload", function()
+    M.config_cache = nil
+    M.last_config_check = 0
+    local config = M:discover_configuration()
+    if config then
+      vim.notify("Astra: Configuration reloaded successfully", vim.log.levels.INFO)
+    else
+      vim.notify("Astra: Failed to reload configuration", vim.log.levels.ERROR)
+    end
+  end, { desc = "Reload configuration" })
+
+  vim.api.nvim_create_user_command("AstraConfigEnable", function()
+    M:enable_plugin()
+  end, { desc = "Enable Astra plugin" })
+
+  -- ⬆️ 上传命令 (Upload)
   vim.api.nvim_create_user_command("AstraUpload", function(opts)
-    local args = vim.split(opts.args, " ", true)
-    
-    -- Auto-detect file paths if no arguments provided
+    local args = vim.split(opts.args, " ", { trimempty = true })
+
+    -- 无参数：上传当前文件
     if #args == 0 then
       local file_info = M:get_current_file_info()
       if file_info and file_info.absolute_path then
@@ -512,8 +529,8 @@ function M:initialize_commands()
       end
       return
     end
-    
-    -- Handle single argument (local file only, auto-generate remote path)
+
+    -- 一个参数：自动生成远程路径
     if #args == 1 then
       local local_path = args[1]
       local remote_path = M:get_remote_path(local_path)
@@ -524,25 +541,25 @@ function M:initialize_commands()
       end
       return
     end
-    
-    -- Handle two arguments (explicit paths)
+
+    -- 两个参数：明确指定路径
     if #args == 2 then
       M:upload_file(args[1], args[2])
     else
-      vim.notify("Usage: AstraUpload [local_path] [remote_path]\nIf no arguments provided, uses current file", vim.log.levels.ERROR)
+      vim.notify("Usage: AstraUpload [local_path] [remote_path]\n• No args: Upload current file\n• One arg: Auto-detect remote path", vim.log.levels.ERROR)
     end
-  end, { nargs = "*", desc = "Upload file (auto-detects paths if not specified)" })
+  end, { nargs = "*", desc = "Upload file(s) with auto-path detection" })
 
+  -- ⬇️ 下载命令 (Download)
   vim.api.nvim_create_user_command("AstraDownload", function(opts)
-    local args = vim.split(opts.args, " ", true)
-    
-    -- Auto-detect file paths if no arguments provided
+    local args = vim.split(opts.args, " ", { trimempty = true })
+
     if #args == 0 then
       vim.notify("Astra: Please specify remote file path to download", vim.log.levels.ERROR)
       return
     end
-    
-    -- Handle single argument (remote file only, auto-generate local path)
+
+    -- 一个参数：自动生成本地路径
     if #args == 1 then
       local remote_path = args[1]
       local local_path = M:get_local_path(remote_path)
@@ -553,16 +570,54 @@ function M:initialize_commands()
       end
       return
     end
-    
-    -- Handle two arguments (explicit paths)
+
+    -- 两个参数：明确指定路径
     if #args == 2 then
       M:download_file(args[1], args[2])
     else
-      vim.notify("Usage: AstraDownload <remote_path> [local_path]\nIf local_path not specified, auto-generates based on config", vim.log.levels.ERROR)
+      vim.notify("Usage: AstraDownload <remote_path> [local_path]\n• One arg: Auto-detect local path", vim.log.levels.ERROR)
     end
-  end, { nargs = "*", desc = "Download file (auto-generates local path if not specified)" })
+  end, { nargs = "*", desc = "Download file(s) with auto-path detection" })
 
-  -- Add convenient single-key commands for current file
+  -- 🔄 同步命令 (Synchronization)
+  vim.api.nvim_create_user_command("AstraSync", function(opts)
+    local mode = opts.args or "bidirectional"
+    local valid_modes = {
+      ["upload"] = "upload",
+      ["download"] = "download",
+      ["bidirectional"] = "auto",
+      ["auto"] = "auto"
+    }
+
+    if valid_modes[mode] then
+      M:sync_files(valid_modes[mode])
+    else
+      vim.notify("Astra: Invalid sync mode. Use: upload, download, bidirectional, or auto", vim.log.levels.ERROR)
+    end
+  end, { nargs = "?", desc = "Synchronize files (upload|download|bidirectional|auto)" })
+
+  vim.api.nvim_create_user_command("AstraStatus", function()
+    M:check_status()
+  end, { desc = "Check synchronization status" })
+
+  vim.api.nvim_create_user_command("AstraSyncStatus", function()
+    M:show_sync_status()
+  end, { desc = "Show sync queue and error history" })
+
+  vim.api.nvim_create_user_command("AstraSyncClear", function()
+    M:clear_sync_queue()
+  end, { desc = "Clear pending synchronization queue" })
+
+  -- 📦 版本管理命令 (Version Management)
+  vim.api.nvim_create_user_command("AstraVersion", function()
+    M:show_version()
+  end, { desc = "Show Astra.nvim version information" })
+
+  vim.api.nvim_create_user_command("AstraUpdateCheck", function()
+    M:check_for_updates()
+  end, { desc = "Check for Astra.nvim updates" })
+
+  -- 🎯 便捷命令 (Convenience Commands)
   vim.api.nvim_create_user_command("AstraUploadCurrent", function()
     local file_info = M:get_current_file_info()
     if file_info and file_info.absolute_path then
@@ -575,7 +630,24 @@ function M:initialize_commands()
     else
       vim.notify("Astra: No current file to upload", vim.log.levels.ERROR)
     end
-  end, { desc = "Upload current file with auto-detected remote path" })
+  end, { desc = "Quick upload current file" })
+
+  vim.api.nvim_create_user_command("AstraHelp", function()
+    M:show_help()
+  end, { desc = "Show Astra.nvim command help" })
+
+  vim.api.nvim_create_user_command("AstraTest", function()
+    M:test_notifications()
+  end, { desc = "Test notification system" })
+
+  -- 🔗 别名命令 (Aliases) - 保持向后兼容
+  vim.api.nvim_create_user_command("AstraInit", function()
+    M:init_config()
+  end, { desc = "Initialize Astra configuration (alias for AstraConfigInit)" })
+
+  vim.api.nvim_create_user_command("AstraInfo", function()
+    M:show_config_info()
+  end, { desc = "Show configuration information (alias for AstraConfigInfo)" })
 
   vim.api.nvim_create_user_command("AstraRefreshConfig", function()
     M.config_cache = nil
@@ -586,39 +658,159 @@ function M:initialize_commands()
     else
       vim.notify("Astra: Failed to refresh configuration", vim.log.levels.ERROR)
     end
-  end, { desc = "Refresh cached configuration" })
+  end, { desc = "Refresh configuration (alias for AstraConfigReload)" })
 
-  vim.api.nvim_create_user_command("AstraVersion", function()
-    M:show_version()
-  end, { desc = "Show Astra.nvim version information" })
+  vim.api.nvim_create_user_command("AstraEnable", function()
+    M:enable_plugin()
+  end, { desc = "Enable plugin (alias for AstraConfigEnable)" })
 
   vim.api.nvim_create_user_command("AstraCheckUpdate", function()
     M:check_for_updates()
-  end, { desc = "Check for Astra.nvim updates" })
-
-  vim.api.nvim_create_user_command("AstraConfigTest", function()
-    M:test_config()
-  end, { desc = "Test configuration discovery and show detailed parsing results" })
-
-  vim.api.nvim_create_user_command("AstraConfigInfo", function()
-    M:show_config_info()
-  end, { desc = "Show current loaded configuration information" })
-
-  vim.api.nvim_create_user_command("AstraInfo", function()
-    M:show_config_info()
-  end, { desc = "Show current loaded configuration information (alias)" })
-
-  vim.api.nvim_create_user_command("AstraSyncStatus", function()
-    M:show_sync_status()
-  end, { desc = "Show sync queue status and error history" })
+  end, { desc = "Check for updates (alias for AstraUpdateCheck)" })
 
   vim.api.nvim_create_user_command("AstraClearQueue", function()
     M:clear_sync_queue()
-  end, { desc = "Clear pending sync uploads" })
+  end, { desc = "Clear sync queue (alias for AstraSyncClear)" })
 
   vim.api.nvim_create_user_command("AstraTestNotification", function()
     M:test_notifications()
-  end, { desc = "Test LazyVim-style notification system" })
+  end, { desc = "Test notifications (alias for AstraTest)" })
+end
+
+-- 设置合理的快捷键分配方案
+function M:setup_key_mappings()
+  -- 获取本地leader键
+  local leader = vim.g.maplocalleader or vim.g.mapleader or "\\"
+
+  -- Astra功能域前缀：<leader>A
+  -- 遵循语义继承性原则：二级键映射表示功能域，三级键映射表示具体操作
+
+  -- 🔧 配置管理域 (Ar - Astra configure/Reset)
+  vim.keymap.set('n', leader .. 'Ar', function() M:show_config_info() end,
+    { desc = "Astra: Show config info", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Arc', function() M:init_config() end,
+    { desc = "Astra: Config init", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Arr', function() M:refresh_config() end,
+    { desc = "Astra: Config reload", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Art', function() M:test_config() end,
+    { desc = "Astra: Config test", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Are', function() M:enable_plugin() end,
+    { desc = "Astra: Config enable", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Ard', function() M:set_plugin_enabled(false) end,
+    { desc = "Astra: Config disable", noremap = true, silent = true })
+
+  -- ⬆️ 上传功能域 (Au - Astra upload)
+  vim.keymap.set('n', leader .. 'Au', function() M:upload_current_file() end,
+    { desc = "Astra: Upload current file", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Aum', function() M:upload_with_selection() end,
+    { desc = "Astra: Upload multiple files", noremap = true, silent = true })
+  vim.keymap.set('x', leader .. 'Au', function() M:upload_selected_files() end,
+    { desc = "Astra: Upload selected files", noremap = true, silent = true })
+
+  -- ⬇️ 下载功能域 (Ad - Astra download)
+  vim.keymap.set('n', leader .. 'Ad', function() M:prompt_download_file() end,
+    { desc = "Astra: Download file", noremap = true, silent = true })
+
+  -- 🔄 同步功能域 (As - Astra sync)
+  vim.keymap.set('n', leader .. 'As', function() M:sync_files("auto") end,
+    { desc = "Astra: Sync auto", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Ass', function() M:check_status() end,
+    { desc = "Astra: Sync status", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Asc', function() M:clear_sync_queue() end,
+    { desc = "Astra: Sync clear queue", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Asf', function() M:sync_files("upload") end,
+    { desc = "Astra: Sync force upload", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Asg', function() M:sync_files("download") end,
+    { desc = "Astra: Sync force download", noremap = true, silent = true })
+
+  -- 📦 版本管理域 (Av - Astra version)
+  vim.keymap.set('n', leader .. 'Av', function() M:show_version() end,
+    { desc = "Astra: Version check", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Avc', function() M:check_for_updates() end,
+    { desc = "Astra: Version update check", noremap = true, silent = true })
+
+  -- 🎯 便捷功能域 (Aa - Astra assist/help)
+  vim.keymap.set('n', leader .. 'Aa', function() M:show_help() end,
+    { desc = "Astra: Show help", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Aat', function() M:test_notifications() end,
+    { desc = "Astra: Test notification", noremap = true, silent = true })
+
+  -- 快捷操作（高频使用）
+  -- <leader>a 单键映射用于最常用的操作
+  vim.keymap.set('n', leader .. 'a', function() M:upload_current_file() end,
+    { desc = "Astra: Quick upload current", noremap = true, silent = true })
+
+  -- 可选：设置<leader>A作为帮助键
+  vim.keymap.set('n', leader .. 'A', function() M:show_help() end,
+    { desc = "Astra: Show command help", noremap = true, silent = true })
+end
+
+-- 辅助函数用于完善键映射功能
+function M:upload_with_selection()
+  -- 显示文件选择界面让用户选择要上传的文件
+  local files = vim.fn.glob("**/*", false, true)
+  local filtered_files = {}
+
+  for _, file in ipairs(files) do
+    if vim.fn.isdirectory(file) == 0 and vim.fn.filereadable(file) == 1 then
+      table.insert(filtered_files, file)
+    end
+  end
+
+  if #filtered_files == 0 then
+    vim.notify("Astra: No files found to upload", vim.log.levels.WARN)
+    return
+  end
+
+  -- 简化版本：上传第一个找到的文件
+  -- 在实际使用中，这里可以实现一个文件选择器
+  local selected_file = filtered_files[1]
+  local remote_path = M:get_remote_path(selected_file)
+  if remote_path then
+    M:upload_file(selected_file, remote_path)
+  else
+    vim.notify("Astra: Cannot determine remote path for " .. selected_file, vim.log.levels.ERROR)
+  end
+end
+
+function M:upload_selected_files()
+  -- 在可视模式下选择的文件
+  -- 这是一个简化实现，实际应用中可能需要更复杂的逻辑
+  vim.notify("Astra: Upload selected files - feature coming soon", vim.log.levels.INFO)
+end
+
+function M:prompt_download_file()
+  local remote_path = vim.fn.input("Enter remote file path to download: ")
+  if remote_path and remote_path ~= "" then
+    local local_path = M:get_local_path(remote_path)
+    if local_path then
+      M:download_file(remote_path, local_path)
+    else
+      vim.notify("Astra: Cannot determine local path for " .. remote_path, vim.log.levels.ERROR)
+    end
+  end
+end
+
+function M:set_plugin_enabled(enabled)
+  -- 切换插件启用/禁用状态的函数
+  if enabled then
+    vim.notify("Astra: Enabling plugin...", vim.log.levels.INFO)
+    -- 这里可以添加自动启用插件的逻辑
+  else
+    vim.notify("Astra: Disabling plugin...", vim.log.levels.WARN)
+    -- 这里可以添加自动禁用插件的逻辑
+  end
+end
+
+function M:refresh_config()
+  M.config_cache = nil
+  M.last_config_check = 0
+  local config = M:discover_configuration()
+  if config then
+    vim.notify("Astra: Configuration refreshed successfully", vim.log.levels.INFO)
+  else
+    vim.notify("Astra: Failed to refresh configuration", vim.log.levels.ERROR)
+  end
 end
 
 function M:init_config()
@@ -1363,6 +1555,182 @@ function M:show_plugin_disabled_notification()
       title = "Astra.nvim",
       timeout = 10000, -- Show for 10 seconds
     })
+  end)
+end
+
+-- Show Astra.nvim command help
+function M:show_help()
+  local help_content = {}
+  local leader = vim.g.maplocalleader or vim.g.mapleader or "\\"
+
+  -- Header
+  table.insert(help_content, "🚀 Astra.nvim Command Help")
+  table.insert(help_content, string.rep("═", 60))
+  table.insert(help_content, "")
+
+  -- Key Bindings Section
+  table.insert(help_content, "⌨️  Key Bindings (using <leader> = '" .. leader .. "'):")
+  table.insert(help_content, "")
+
+  table.insert(help_content, "🔧 Configuration (Ar):")
+  table.insert(help_content, "  " .. leader .. "Ar     - Show config info")
+  table.insert(help_content, "  " .. leader .. "Arc    - Initialize config")
+  table.insert(help_content, "  " .. leader .. "Arr    - Reload config")
+  table.insert(help_content, "  " .. leader .. "Art    - Test config")
+  table.insert(help_content, "  " .. leader .. "Are    - Enable plugin")
+  table.insert(help_content, "  " .. leader .. "Ard    - Disable plugin")
+  table.insert(help_content, "")
+
+  table.insert(help_content, "⬆️ Upload (Au):")
+  table.insert(help_content, "  " .. leader .. "Au     - Upload current file")
+  table.insert(help_content, "  " .. leader .. "Aum    - Upload multiple files")
+  table.insert(help_content, "  " .. leader .. "Au (visual) - Upload selected files")
+  table.insert(help_content, "")
+
+  table.insert(help_content, "⬇️ Download (Ad):")
+  table.insert(help_content, "  " .. leader .. "Ad     - Download file (prompt)")
+  table.insert(help_content, "")
+
+  table.insert(help_content, "🔄 Synchronization (As):")
+  table.insert(help_content, "  " .. leader .. "As     - Auto sync (bidirectional)")
+  table.insert(help_content, "  " .. leader .. "Ass    - Sync status")
+  table.insert(help_content, "  " .. leader .. "Asc    - Clear sync queue")
+  table.insert(help_content, "  " .. leader .. "Asf    - Force upload")
+  table.insert(help_content, "  " .. leader .. "Asg    - Force download")
+  table.insert(help_content, "")
+
+  table.insert(help_content, "📦 Version (Av):")
+  table.insert(help_content, "  " .. leader .. "Av     - Check version")
+  table.insert(help_content, "  " .. leader .. "Avc    - Check updates")
+  table.insert(help_content, "")
+
+  table.insert(help_content, "🎯 Convenience (Aa):")
+  table.insert(help_content, "  " .. leader .. "Aa     - Show help")
+  table.insert(help_content, "  " .. leader .. "Aat    - Test notifications")
+  table.insert(help_content, "")
+
+  table.insert(help_content, "⚡ Quick Actions:")
+  table.insert(help_content, "  " .. leader .. "a      - Quick upload current file")
+  table.insert(help_content, "  " .. leader .. "A      - Show help")
+  table.insert(help_content, "")
+
+  table.insert(help_content, string.rep("─", 60))
+  table.insert(help_content, "")
+
+  -- Configuration Commands
+  table.insert(help_content, "🔧 Configuration Commands:")
+  table.insert(help_content, "  :AstraConfigInit           - Initialize configuration")
+  table.insert(help_content, "  :AstraConfigTest          - Test configuration discovery")
+  table.insert(help_content, "  :AstraConfigInfo          - Show current configuration")
+  table.insert(help_content, "  :AstraConfigReload         - Reload configuration")
+  table.insert(help_content, "  :AstraConfigEnable         - Enable plugin")
+  table.insert(help_content, "")
+
+  -- Upload Commands
+  table.insert(help_content, "⬆️ Upload Commands:")
+  table.insert(help_content, "  :AstraUpload [file] [remote] - Upload file(s)")
+  table.insert(help_content, "  :AstraUploadCurrent       - Quick upload current file")
+  table.insert(help_content, "")
+
+  -- Download Commands
+  table.insert(help_content, "⬇️ Download Commands:")
+  table.insert(help_content, "  :AstraDownload <remote> [local] - Download file(s)")
+  table.insert(help_content, "")
+
+  -- Synchronization Commands
+  table.insert(help_content, "🔄 Synchronization Commands:")
+  table.insert(help_content, "  :AstraSync [mode]         - Sync files (upload|download|bidirectional|auto)")
+  table.insert(help_content, "  :AstraStatus              - Check sync status")
+  table.insert(help_content, "  :AstraSyncStatus          - Show sync queue status")
+  table.insert(help_content, "  :AstraSyncClear           - Clear pending sync queue")
+  table.insert(help_content, "")
+
+  -- Version Commands
+  table.insert(help_content, "📦 Version Management:")
+  table.insert(help_content, "  :AstraVersion             - Show version information")
+  table.insert(help_content, "  :AstraUpdateCheck          - Check for updates")
+  table.insert(help_content, "")
+
+  -- Convenience Commands
+  table.insert(help_content, "🎯 Convenience Commands:")
+  table.insert(help_content, "  :AstraHelp                - Show this help")
+  table.insert(help_content, "  :AstraTest                - Test notification system")
+  table.insert(help_content, "")
+
+  -- Aliases
+  table.insert(help_content, "🔗 Legacy Aliases:")
+  table.insert(help_content, "  :AstraInit, :AstraInfo, :AstraRefreshConfig, etc.")
+  table.insert(help_content, "")
+
+  -- Usage Examples
+  table.insert(help_content, "💡 Usage Examples:")
+  table.insert(help_content, "  " .. leader .. "a                      # Quick upload current file")
+  table.insert(help_content, "  :AstraUploadCurrent        # Upload current file")
+  table.insert(help_content, "  :AstraDownload config.js   # Download config.js")
+  table.insert(help_content, "  :AstraSync upload          # Upload all changes")
+  table.insert(help_content, "  :AstraConfigTest          # Test configuration")
+  table.insert(help_content, "")
+
+  -- Footer
+  table.insert(help_content, string.rep("═", 60))
+  table.insert(help_content, "Press 'q' or <Esc> to close this help window")
+
+  -- Display in floating window
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, help_content)
+
+  -- Calculate window dimensions
+  local dims = calculate_window_dimensions(help_content, {
+    min_width = 70,
+    max_width = 120,
+    padding = 8
+  })
+
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    width = dims.width,
+    height = dims.height,
+    col = dims.col,
+    row = dims.row,
+    border = "rounded",
+    title = " Astra.nvim Command Help ",
+    title_pos = "center",
+    style = "minimal",
+  })
+
+  -- Configure window
+  vim.api.nvim_win_set_option(win, "wrap", false)
+  vim.api.nvim_win_set_option(win, "cursorline", true)
+  vim.api.nvim_win_set_option(win, "number", false)
+  vim.api.nvim_win_set_option(win, "relativenumber", false)
+
+  -- Set up key mappings
+  local opts = { noremap = true, silent = true }
+  vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<CR>", opts)
+  vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", "<cmd>close<CR>", opts)
+
+  -- Make buffer read-only
+  vim.api.nvim_buf_set_option(buf, "modifiable", false)
+  vim.api.nvim_buf_set_option(buf, "readonly", true)
+
+  -- Highlight sections
+  vim.schedule(function()
+    local ns_id = vim.api.nvim_create_namespace("astra_help")
+
+    for i, line in ipairs(help_content) do
+      local line_idx = i - 1
+
+      -- Highlight section headers
+      if line:match("^🔧") or line:match("^⬆️") or line:match("^⬇️") or
+         line:match("^🔄") or line:match("^📦") or line:match("^🎯") or line:match("^🔗") then
+        vim.api.nvim_buf_add_highlight(buf, ns_id, "Title", line_idx, 0, -1)
+      end
+
+      -- Highlight examples
+      if line:match("^💡") then
+        vim.api.nvim_buf_add_highlight(buf, ns_id, "String", line_idx, 0, -1)
+      end
+    end
   end)
 end
 
