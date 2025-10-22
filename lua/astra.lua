@@ -653,7 +653,10 @@ function M:discover_configuration()
   local static_binary_exists = vim.loop.fs_stat(M.static_binary_path) ~= nil
   local release_binary_exists = vim.loop.fs_stat(M.binary_path) ~= nil
 
-  if M.config.static_build and static_binary_exists then
+  -- Check if config exists, use default if not
+  local static_build = M.config and M.config.static_build or false
+
+  if static_build and static_binary_exists then
     binary_path = M.static_binary_path
   elseif release_binary_exists then
     binary_path = M.binary_path
@@ -677,14 +680,16 @@ function M:discover_configuration()
       M.config_cache = config_info
       M.last_config_check = current_time
       
-      -- Update runtime config with discovered settings
-      M.config.host = config_info.host
-      M.config.port = config_info.port
-      M.config.username = config_info.username
-      M.config.password = config_info.password
-      M.config.private_key_path = config_info.private_key_path
-      M.config.remote_path = config_info.remote_path
-      M.config.local_path = config_info.local_path
+      -- Update runtime config with discovered settings (safe update)
+      if M.config then
+        M.config.host = config_info.host
+        M.config.port = config_info.port
+        M.config.username = config_info.username
+        M.config.password = config_info.password
+        M.config.private_key_path = config_info.private_key_path
+        M.config.remote_path = config_info.remote_path
+        M.config.local_path = config_info.local_path
+      end
       
       return config_info
     end
@@ -1224,7 +1229,8 @@ function M:refresh_config()
 end
 
 function M:init_config()
-  local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
+  local static_build = M.config and M.config.static_build or false
+  local binary_path = static_build and M.static_binary_path or M.binary_path
   local cmd = string.format("%s init", binary_path)
 
   vim.notify("Astra: Initializing configuration...", vim.log.levels.INFO)
@@ -1279,7 +1285,8 @@ function M:sync_files(mode)
     return
   end
 
-  local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
+  local static_build = M.config and M.config.static_build or false
+  local binary_path = static_build and M.static_binary_path or M.binary_path
   local cmd = string.format("%s sync --mode %s", binary_path, mode)
 
   vim.notify("Astra: Starting sync operation in background...", vim.log.levels.INFO)
@@ -1320,7 +1327,8 @@ function M:check_status()
     return
   end
   
-  local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
+  local static_build = M.config and M.config.static_build or false
+  local binary_path = static_build and M.static_binary_path or M.binary_path
   local cmd = string.format("%s status", binary_path)
 
   local output = vim.fn.system(cmd)
@@ -1361,7 +1369,8 @@ function M:upload_file(local_path, remote_path)
     end
   end
 
-  local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
+  local static_build = M.config and M.config.static_build or false
+  local binary_path = static_build and M.static_binary_path or M.binary_path
   local cmd = string.format(
     "timeout 30s %s upload --local %s --remote %s",
     binary_path,
@@ -1456,7 +1465,8 @@ function M:download_file(remote_path, local_path)
     local_path = vim.fn.fnamemodify(local_path, ":p")
   end
 
-  local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
+  local static_build = M.config and M.config.static_build or false
+  local binary_path = static_build and M.static_binary_path or M.binary_path
   local cmd = string.format(
     "%s download --remote %s --local %s",
     binary_path,
@@ -1497,7 +1507,8 @@ end
 
 function M:start_auto_sync()
   local timer = vim.loop.new_timer()
-  timer:start(0, M.config.sync_interval, function()
+  local sync_interval = M.config and M.config.sync_interval or 30000
+  timer:start(0, sync_interval, function()
     vim.schedule(function()
       M:sync_files("auto")
     end)
@@ -1633,7 +1644,8 @@ function M:stop_auto_sync()
 end
 
 function M:show_version()
-  local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
+  local static_build = M.config and M.config.static_build or false
+  local binary_path = static_build and M.static_binary_path or M.binary_path
   local cmd = string.format("%s version", binary_path)
   
   local output = vim.fn.system(cmd)
@@ -1652,7 +1664,8 @@ function M:show_version()
 end
 
 function M:check_for_updates()
-  local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
+  local static_build = M.config and M.config.static_build or false
+  local binary_path = static_build and M.static_binary_path or M.binary_path
   local cmd = string.format("%s check-update", binary_path)
   
   vim.notify("Astra: Checking for updates...", vim.log.levels.INFO)
@@ -1699,7 +1712,8 @@ function M:parse_sync_result(output)
 end
 
 function M:test_config()
-  local binary_path = M.config.static_build and M.static_binary_path or M.binary_path
+  local static_build = M.config and M.config.static_build or false
+  local binary_path = static_build and M.static_binary_path or M.binary_path
   local cmd = string.format("%s config-test", binary_path)
 
   vim.notify("Astra: Testing configuration discovery...", vim.log.levels.INFO)
