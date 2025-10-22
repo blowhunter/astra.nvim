@@ -523,14 +523,8 @@ return {
       end)
     end
 
-    -- 初始化完成提示
-    vim.notify("Astra.nvim: 插件初始化完成", vim.log.levels.INFO, { title = "Astra.nvim" })
-
-    -- 显示简洁的使用提示
-    vim.schedule(function()
-      vim.notify("Astra.nvim 插件已加载完成", vim.log.levels.INFO, { title = "Astra.nvim" })
-      vim.notify("使用 <leader>A 查看所有可用快捷键", vim.log.levels.INFO, { title = "Astra.nvim" })
-    end)
+    -- 插件初始化完成，不显示多余提示
+    -- 提示信息现在由智能状态管理系统统一处理
   end,
 }
 
