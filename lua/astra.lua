@@ -1087,145 +1087,68 @@ function M:initialize_commands()
   end, { desc = "Test notifications (alias for AstraTest)" })
 end
 
--- 设置合理的快捷键分配方案
+-- 设置完整功能模式的快捷键分配方案
 function M:setup_key_mappings()
   -- 获取本地leader键
   local leader = vim.g.maplocalleader or vim.g.mapleader or "\\"
-
-  -- 检查配置是否可用
-  local config = M:discover_configuration()
-  local has_config = config and config.enabled ~= false
 
   -- Astra功能域前缀：<leader>A
   -- 遵循语义继承性原则：二级键映射表示功能域，三级键映射表示具体操作
 
   -- 🔧 配置管理域 (Ar - Astra configure/Reset)
-  vim.keymap.set('n', leader .. 'Ar', function()
-    if has_config then
-      M:show_config_info()
-    else
-      vim.notify("Astra: No configuration found. Run " .. leader .. "Arc to create one", vim.log.levels.WARN)
-    end
-  end, { desc = "Astra: Show config info", noremap = true, silent = true })
-
+  vim.keymap.set('n', leader .. 'Ar', function() M:show_config_info() end,
+    { desc = "Astra: Show config info", noremap = true, silent = true })
   vim.keymap.set('n', leader .. 'Arc', function() M:init_config() end,
     { desc = "Astra: Config init", noremap = true, silent = true })
-
-  vim.keymap.set('n', leader .. 'Arr', function()
-    if has_config then
-      M:refresh_config()
-    else
-      vim.notify("Astra: No configuration to reload", vim.log.levels.WARN)
-    end
-  end, { desc = "Astra: Config reload", noremap = true, silent = true })
-
+  vim.keymap.set('n', leader .. 'Arr', function() M:refresh_config() end,
+    { desc = "Astra: Config reload", noremap = true, silent = true })
   vim.keymap.set('n', leader .. 'Art', function() M:test_config() end,
     { desc = "Astra: Config test", noremap = true, silent = true })
-
   vim.keymap.set('n', leader .. 'Are', function() M:enable_plugin() end,
     { desc = "Astra: Config enable", noremap = true, silent = true })
-
   vim.keymap.set('n', leader .. 'Ard', function() M:set_plugin_enabled(false) end,
     { desc = "Astra: Config disable", noremap = true, silent = true })
 
   -- ⬆️ 上传功能域 (Au - Astra upload)
-  vim.keymap.set('n', leader .. 'Au', function()
-    if has_config then
-      M:upload_current_file()
-    else
-      vim.notify("Astra: No configuration found. Run " .. leader .. "Arc to create one", vim.log.levels.WARN)
-    end
-  end, { desc = "Astra: Upload current file", noremap = true, silent = true })
-
-  vim.keymap.set('n', leader .. 'Aum', function()
-    if has_config then
-      M:upload_with_selection()
-    else
-      vim.notify("Astra: No configuration found. Run " .. leader .. "Arc to create one", vim.log.levels.WARN)
-    end
-  end, { desc = "Astra: Upload multiple files", noremap = true, silent = true })
-
-  vim.keymap.set('x', leader .. 'Au', function()
-    if has_config then
-      M:upload_selected_files()
-    else
-      vim.notify("Astra: No configuration found. Run " .. leader .. "Arc to create one", vim.log.levels.WARN)
-    end
-  end, { desc = "Astra: Upload selected files", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Au', function() M:upload_current_file() end,
+    { desc = "Astra: Upload current file", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Aum', function() M:upload_with_selection() end,
+    { desc = "Astra: Upload multiple files", noremap = true, silent = true })
+  vim.keymap.set('x', leader .. 'Au', function() M:upload_selected_files() end,
+    { desc = "Astra: Upload selected files", noremap = true, silent = true })
 
   -- ⬇️ 下载功能域 (Ad - Astra download)
-  vim.keymap.set('n', leader .. 'Ad', function()
-    if has_config then
-      M:prompt_download_file()
-    else
-      vim.notify("Astra: No configuration found. Run " .. leader .. "Arc to create one", vim.log.levels.WARN)
-    end
-  end, { desc = "Astra: Download file", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Ad', function() M:prompt_download_file() end,
+    { desc = "Astra: Download file", noremap = true, silent = true })
 
   -- 🔄 同步功能域 (As - Astra sync)
-  vim.keymap.set('n', leader .. 'As', function()
-    if has_config then
-      M:sync_files("auto")
-    else
-      vim.notify("Astra: No configuration found. Run " .. leader .. "Arc to create one", vim.log.levels.WARN)
-    end
-  end, { desc = "Astra: Sync auto", noremap = true, silent = true })
-
-  vim.keymap.set('n', leader .. 'Ass', function()
-    if has_config then
-      M:check_status()
-    else
-      vim.notify("Astra: No configuration found. Run " .. leader .. "Arc to create one", vim.log.levels.WARN)
-    end
-  end, { desc = "Astra: Sync status", noremap = true, silent = true })
-
-  vim.keymap.set('n', leader .. 'Asc', function()
-    if has_config then
-      M:clear_sync_queue()
-    else
-      vim.notify("Astra: No configuration found. Run " .. leader .. "Arc to create one", vim.log.levels.WARN)
-    end
-  end, { desc = "Astra: Sync clear queue", noremap = true, silent = true })
-
-  vim.keymap.set('n', leader .. 'Asf', function()
-    if has_config then
-      M:sync_files("upload")
-    else
-      vim.notify("Astra: No configuration found. Run " .. leader .. "Arc to create one", vim.log.levels.WARN)
-    end
-  end, { desc = "Astra: Sync force upload", noremap = true, silent = true })
-
-  vim.keymap.set('n', leader .. 'Asg', function()
-    if has_config then
-      M:sync_files("download")
-    else
-      vim.notify("Astra: No configuration found. Run " .. leader .. "Arc to create one", vim.log.levels.WARN)
-    end
-  end, { desc = "Astra: Sync force download", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'As', function() M:sync_files("auto") end,
+    { desc = "Astra: Sync auto", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Ass', function() M:check_status() end,
+    { desc = "Astra: Sync status", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Asc', function() M:clear_sync_queue() end,
+    { desc = "Astra: Sync clear queue", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Asf', function() M:sync_files("upload") end,
+    { desc = "Astra: Sync force upload", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Asg', function() M:sync_files("download") end,
+    { desc = "Astra: Sync force download", noremap = true, silent = true })
 
   -- 📦 版本管理域 (Av - Astra version)
   vim.keymap.set('n', leader .. 'Av', function() M:show_version() end,
     { desc = "Astra: Version check", noremap = true, silent = true })
-
   vim.keymap.set('n', leader .. 'Avc', function() M:check_for_updates() end,
     { desc = "Astra: Version update check", noremap = true, silent = true })
 
   -- 🎯 便捷功能域 (Aa - Astra assist/help)
   vim.keymap.set('n', leader .. 'Aa', function() M:show_help() end,
     { desc = "Astra: Show help", noremap = true, silent = true })
-
   vim.keymap.set('n', leader .. 'Aat', function() M:test_notifications() end,
     { desc = "Astra: Test notification", noremap = true, silent = true })
 
   -- 快捷操作（高频使用）
   -- <leader>a 单键映射用于最常用的操作
-  vim.keymap.set('n', leader .. 'a', function()
-    if has_config then
-      M:upload_current_file()
-    else
-      vim.notify("Astra: No configuration found. Run " .. leader .. "Arc to create one", vim.log.levels.WARN)
-    end
-  end, { desc = "Astra: Quick upload current", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'a', function() M:upload_current_file() end,
+    { desc = "Astra: Quick upload current", noremap = true, silent = true })
 
   -- 可选：设置<leader>A作为帮助键
   vim.keymap.set('n', leader .. 'A', function() M:show_help() end,
