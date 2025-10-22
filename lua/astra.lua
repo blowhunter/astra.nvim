@@ -146,6 +146,459 @@ M.show_lazyvim_notification = function(content, level)
   end
 end
 
+-- 检查插件状态
+function M:check_plugin_status()
+  -- 1. 检查配置文件
+  local config = M:discover_configuration()
+  local has_config = config and config.enabled ~= false
+
+  if not has_config then
+    return "no_config"  -- 无配置状态
+  end
+
+  -- 2. 检查后端可执行文件
+  local binary_exists = M:check_backend_binary()
+
+  if not binary_exists then
+    return "config_no_binary"  -- 有配置但无二进制
+  end
+
+  return "full_functionality"  -- 完整功能状态
+end
+
+-- 检查后端可执行文件是否存在
+function M:check_backend_binary()
+  local binary_path = M:get_binary_path()
+  return vim.fn.executable(binary_path) == 1
+end
+
+-- 获取正确的二进制路径
+function M:get_binary_path()
+  if M.config and M.config.static_build then
+    return M.static_binary_path
+  end
+  return M.binary_path
+end
+
+-- 根据状态分级初始化插件
+function M:initialize_by_status(status)
+  local leader = vim.g.maplocalleader or vim.g.mapleader or "\\"
+
+  -- 清除所有现有的Astra快捷键和命令
+  M:clear_all_mappings()
+
+  if status == "no_config" then
+    -- 状态1：无配置 - 仅显示初始化配置功能
+    vim.notify("Astra: No configuration found. Use " .. leader .. "Arc to initialize", vim.log.levels.WARN)
+
+    -- 仅设置配置初始化相关的快捷键和命令
+    M:setup_no_config_mode()
+
+  elseif status == "config_no_binary" then
+    -- 状态2：有配置但无二进制 - 显示配置管理和构建功能
+    vim.notify("Astra: Configuration found, but backend binary missing. Use " .. leader .. "Abc to build", vim.log.levels.INFO)
+
+    -- 设置配置管理和构建相关的快捷键和命令
+    M:setup_config_no_binary_mode()
+
+  elseif status == "full_functionality" then
+    -- 状态3：完整功能 - 启用所有功能
+    vim.notify("Astra: Full functionality enabled", vim.log.levels.INFO)
+
+    -- 设置所有功能
+    M:setup_full_functionality_mode()
+  end
+end
+
+-- 清除所有Astra相关的映射和命令
+function M:clear_all_mappings()
+  local leader = vim.g.maplocalleader or vim.g.mapleader or "\\"
+
+  -- 清除快捷键映射
+  local mappings_to_clear = {
+    'Ar', 'Arc', 'Arr', 'Art', 'Are', 'Ard',
+    'Au', 'Aum',
+    'Ad',
+    'As', 'Ass', 'Asc', 'Asf', 'Asg',
+    'Av', 'Avc',
+    'Aa', 'Aat',
+    'a', 'A',
+    'Abc', 'Abi'
+  }
+
+  for _, mapping in ipairs(mappings_to_clear) do
+    pcall(vim.keymap.del, 'n', leader .. mapping)
+    if mapping == 'Au' then
+      pcall(vim.keymap.del, 'x', leader .. mapping)
+    end
+  end
+
+  -- 清除用户命令
+  local commands_to_clear = {
+    'AstraConfigInit', 'AstraConfigTest', 'AstraConfigInfo', 'AstraConfigReload', 'AstraConfigEnable',
+    'AstraUpload', 'AstraUploadCurrent', 'AstraDownload',
+    'AstraSync', 'AstraStatus', 'AstraSyncStatus', 'AstraSyncClear',
+    'AstraVersion', 'AstraUpdateCheck',
+    'AstraHelp', 'AstraTest',
+    'AstraBuild',
+    -- Legacy aliases
+    'AstraInit', 'AstraInfo', 'AstraRefreshConfig', 'AstraRefresh', 'AstraShowVersion',
+    'AstraCheckUpdates', 'AstraUploadFile', 'AstraSyncProject', 'AstraStatusCheck',
+    'AstraClearQueue', 'AstraTestNotification'
+  }
+
+  for _, cmd in ipairs(commands_to_clear) do
+    if vim.fn.exists(':' .. cmd) == 2 then
+      pcall(vim.api.nvim_del_user_command, cmd)
+    end
+  end
+end
+
+-- 模式1：无配置模式 - 仅初始化配置功能
+function M:setup_no_config_mode()
+  local leader = vim.g.maplocalleader or vim.g.mapleader or "\\"
+
+  -- 仅设置配置初始化相关的命令
+  vim.api.nvim_create_user_command("AstraConfigInit", function()
+    M:init_config()
+  end, { desc = "Initialize Astra configuration" })
+
+  vim.api.nvim_create_user_command("AstraHelp", function()
+    M:show_help_no_config()
+  end, { desc = "Show Astra help" })
+
+  -- 仅设置必要的快捷键
+  vim.keymap.set('n', leader .. 'Arc', function() M:init_config() end,
+    { desc = "Astra: Initialize config", noremap = true, silent = true })
+
+  vim.keymap.set('n', leader .. 'Aa', function() M:show_help_no_config() end,
+    { desc = "Astra: Show help", noremap = true, silent = true })
+
+  vim.keymap.set('n', leader .. 'A', function() M:show_help_no_config() end,
+    { desc = "Astra: Show help", noremap = true, silent = true })
+end
+
+-- 模式2：有配置但无二进制模式 - 配置管理和构建功能
+function M:setup_config_no_binary_mode()
+  local leader = vim.g.maplocalleader or vim.g.mapleader or "\\"
+
+  -- 设置配置管理相关的命令
+  vim.api.nvim_create_user_command("AstraConfigInit", function() M:init_config() end, { desc = "Initialize configuration" })
+  vim.api.nvim_create_user_command("AstraConfigTest", function() M:test_config() end, { desc = "Test configuration" })
+  vim.api.nvim_create_user_command("AstraConfigInfo", function() M:show_config_info() end, { desc = "Show configuration" })
+  vim.api.nvim_create_user_command("AstraConfigReload", function() M:refresh_config() end, { desc = "Reload configuration" })
+
+  -- 设置构建相关的命令
+  vim.api.nvim_create_user_command("AstraBuild", function() M:build_core() end, { desc = "Build Astra core binary" })
+  vim.api.nvim_create_user_command("AstraHelp", function() M:show_help_config_no_binary() end, { desc = "Show Astra help" })
+
+  -- 设置配置管理快捷键
+  vim.keymap.set('n', leader .. 'Ar', function() M:show_config_info() end,
+    { desc = "Astra: Show config info", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Arc', function() M:init_config() end,
+    { desc = "Astra: Initialize config", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Arr', function() M:refresh_config() end,
+    { desc = "Astra: Reload config", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Art', function() M:test_config() end,
+    { desc = "Astra: Test config", noremap = true, silent = true })
+
+  -- 设置构建快捷键
+  vim.keymap.set('n', leader .. 'Abc', function() M:build_core() end,
+    { desc = "Astra: Build core binary", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Abi', function() M:show_build_info() end,
+    { desc = "Astra: Show build info", noremap = true, silent = true })
+
+  vim.keymap.set('n', leader .. 'Aa', function() M:show_help_config_no_binary() end,
+    { desc = "Astra: Show help", noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'A', function() M:show_help_config_no_binary() end,
+    { desc = "Astra: Show help", noremap = true, silent = true })
+end
+
+-- 模式3：完整功能模式 - 所有功能
+function M:setup_full_functionality_mode()
+  local config = M:discover_configuration()
+
+  -- 设置所有命令
+  M:initialize_commands()
+
+  -- 设置所有快捷键
+  M:setup_key_mappings()
+
+  -- 启用同步功能
+  if config.auto_sync then
+    M:start_auto_sync()
+  end
+
+  if config.sync_on_save then
+    M:setup_autocmds()
+  end
+end
+
+-- 构建核心二进制文件
+function M:build_core()
+  local build_dir = M.core_path
+  if not vim.loop.fs_stat(build_dir) then
+    vim.notify("Astra: Core directory not found: " .. build_dir, vim.log.levels.ERROR)
+    return
+  end
+
+  vim.notify("Astra: Building core binary...", vim.log.levels.INFO)
+
+  -- 使用异步任务构建
+  local job = vim.fn.jobstart("cargo build --release", {
+    cwd = build_dir,
+    on_stdout = function(_, data)
+      if data and #data > 0 then
+        for _, line in ipairs(data) do
+          if line and line ~= "" then
+            vim.notify("Build: " .. line, vim.log.levels.INFO)
+          end
+        end
+      end
+    end,
+    on_stderr = function(_, data)
+      if data and #data > 0 then
+        for _, line in ipairs(data) do
+          if line and line ~= "" then
+            vim.notify("Build Error: " .. line, vim.log.levels.ERROR)
+          end
+        end
+      end
+    end,
+    on_exit = function(_, exit_code)
+      if exit_code == 0 then
+        vim.notify("✅ Astra: Core binary built successfully!", vim.log.levels.INFO)
+        -- 重新检查状态并重新初始化
+        local status = M:check_plugin_status()
+        if status == "full_functionality" then
+          vim.notify("🚀 Astra: Enabling full functionality...", vim.log.levels.INFO)
+          M:initialize_by_status(status)
+        end
+      else
+        vim.notify("❌ Astra: Build failed with exit code: " .. exit_code, vim.log.levels.ERROR)
+      end
+    end
+  })
+
+  if job <= 0 then
+    vim.notify("❌ Astra: Failed to start build process", vim.log.levels.ERROR)
+  end
+end
+
+-- 显示构建信息
+function M:show_build_info()
+  local build_info = {}
+  local leader = vim.g.maplocalleader or vim.g.mapleader or "\\"
+
+  table.insert(build_info, "🔨 Astra Build Information")
+  table.insert(build_info, string.rep("═", 50))
+  table.insert(build_info, "")
+
+  -- 检查构建目录
+  local build_dir = M.core_path
+  local build_exists = vim.loop.fs_stat(build_dir) ~= nil
+
+  table.insert(build_info, "📁 Build Directory: " .. (build_exists and "✅ Found" or "❌ Missing"))
+  table.insert(build_info, "   Path: " .. build_dir)
+  table.insert(build_info, "")
+
+  -- 检查二进制文件
+  local binary_path = M:get_binary_path()
+  local binary_exists = vim.fn.executable(binary_path) == 1
+
+  table.insert(build_info, "🔧 Binary Status: " .. (binary_exists and "✅ Ready" or "❌ Missing"))
+  table.insert(build_info, "   Path: " .. binary_path)
+  table.insert(build_info, "")
+
+  -- 检查配置
+  local config = M:discover_configuration()
+  local has_config = config and config.enabled ~= false
+
+  table.insert(build_info, "⚙️  Configuration: " .. (has_config and "✅ Found" or "❌ Missing"))
+  table.insert(build_info, "")
+
+  -- 当前状态
+  local status = M:check_plugin_status()
+  local status_text = {
+    ["no_config"] = "🔴 No Configuration",
+    ["config_no_binary"] = "🟡 Configuration Present, No Binary",
+    ["full_functionality"] = "🟢 Full Functionality"
+  }
+
+  table.insert(build_info, "🎯 Current Status: " .. (status_text[status] or "Unknown"))
+  table.insert(build_info, "")
+
+  -- 可用操作
+  table.insert(build_info, "🚀 Available Actions:")
+  if not has_config then
+    table.insert(build_info, "   " .. leader .. "Arc - Initialize configuration")
+  end
+
+  if has_config and not binary_exists then
+    table.insert(build_info, "   " .. leader .. "Abc - Build core binary")
+    table.insert(build_info, "   " .. leader .. "Abi - Show build info")
+  end
+
+  if has_config and binary_exists then
+    table.insert(build_info, "   ✅ All systems ready!")
+    table.insert(build_info, "   " .. leader .. "Aa - Show full help")
+  end
+
+  table.insert(build_info, "")
+  table.insert(build_info, string.rep("═", 50))
+  table.insert(build_info, "Press 'q' or <Esc> to close")
+
+  -- 显示浮动窗口
+  M:show_floating_window(build_info, "Astra Build Info")
+end
+
+-- 无配置模式的帮助
+function M:show_help_no_config()
+  local help_content = {}
+  local leader = vim.g.maplocalleader or vim.g.mapleader or "\\"
+
+  table.insert(help_content, "🚀 Astra.nvim - No Configuration Mode")
+  table.insert(help_content, string.rep("═", 60))
+  table.insert(help_content, "")
+
+  table.insert(help_content, "🔴 Status: No configuration found")
+  table.insert(help_content, "")
+
+  table.insert(help_content, "📋 Available Commands:")
+  table.insert(help_content, "  :AstraConfigInit      - Initialize configuration")
+  table.insert(help_content, "  :AstraHelp            - Show this help")
+  table.insert(help_content, "")
+
+  table.insert(help_content, "⌨️  Available Key Bindings:")
+  table.insert(help_content, "  " .. leader .. "Arc   - Initialize configuration")
+  table.insert(help_content, "  " .. leader .. "Aa    - Show help")
+  table.insert(help_content, "  " .. leader .. "A     - Show help")
+  table.insert(help_content, "")
+
+  table.insert(help_content, "💡 Next Steps:")
+  table.insert(help_content, "  1. Run '" .. leader .. "Arc' to create initial configuration")
+  table.insert(help_content, "  2. Edit the configuration file with your SFTP settings")
+  table.insert(help_content, "  3. Restart Neovim or reload the plugin")
+  table.insert(help_content, "")
+
+  table.insert(help_content, string.rep("═", 60))
+  table.insert(help_content, "Press 'q' or <Esc> to close this help window")
+
+  M:show_floating_window(help_content, "Astra Help - No Configuration")
+end
+
+-- 有配置但无二进制模式的帮助
+function M:show_help_config_no_binary()
+  local help_content = {}
+  local leader = vim.g.maplocalleader or vim.g.mapleader or "\\"
+
+  table.insert(help_content, "🚀 Astra.nvim - Configuration Found Mode")
+  table.insert(help_content, string.rep("═", 60))
+  table.insert(help_content, "")
+
+  table.insert(help_content, "🟡 Status: Configuration found, but backend binary missing")
+  table.insert(help_content, "")
+
+  table.insert(help_content, "📋 Available Commands:")
+  table.insert(help_content, "  :AstraConfigInit      - Initialize/Update configuration")
+  table.insert(help_content, "  :AstraConfigTest      - Test configuration")
+  table.insert(help_content, "  :AstraConfigInfo      - Show configuration")
+  table.insert(help_content, "  :AstraConfigReload    - Reload configuration")
+  table.insert(help_content, "  :AstraBuild           - Build core binary")
+  table.insert(help_content, "  :AstraHelp            - Show this help")
+  table.insert(help_content, "")
+
+  table.insert(help_content, "⌨️  Available Key Bindings:")
+  table.insert(help_content, "")
+  table.insert(help_content, "🔧 Configuration (Ar):")
+  table.insert(help_content, "  " .. leader .. "Ar    - Show config info")
+  table.insert(help_content, "  " .. leader .. "Arc   - Initialize config")
+  table.insert(help_content, "  " .. leader .. "Arr   - Reload config")
+  table.insert(help_content, "  " .. leader .. "Art   - Test config")
+  table.insert(help_content, "")
+
+  table.insert(help_content, "🔨 Build (Ab):")
+  table.insert(help_content, "  " .. leader .. "Abc   - Build core binary")
+  table.insert(help_content, "  " .. leader .. "Abi   - Show build info")
+  table.insert(help_content, "")
+
+  table.insert(help_content, "🎯 Convenience (Aa):")
+  table.insert(help_content, "  " .. leader .. "Aa    - Show help")
+  table.insert(help_content, "  " .. leader .. "A     - Show help")
+  table.insert(help_content, "")
+
+  table.insert(help_content, "💡 Next Steps:")
+  table.insert(help_content, "  1. Run '" .. leader .. "Abc' to build the backend binary")
+  table.insert(help_content, "  2. Wait for build to complete")
+  table.insert(help_content, "  3. Plugin will automatically enable full functionality")
+  table.insert(help_content, "")
+
+  table.insert(help_content, string.rep("═", 60))
+  table.insert(help_content, "Press 'q' or <Esc> to close this help window")
+
+  M:show_floating_window(help_content, "Astra Help - Configuration Found")
+end
+
+-- 通用浮动窗口显示函数
+function M:show_floating_window(content, title)
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, content)
+  vim.api.nvim_buf_set_option(buf, "modifiable", false)
+  vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
+
+  -- 计算窗口尺寸
+  local width = 0
+  for _, line in ipairs(content) do
+    local line_width = vim.fn.strdisplaywidth(line)
+    width = math.max(width, line_width)
+  end
+  width = math.min(width + 4, vim.fn.winwidth(0) - 10)
+  width = math.max(width, 50)
+
+  local height = #content + 2
+  height = math.min(height, vim.fn.winheight(0) - 5)
+
+  -- 计算窗口位置（居中）
+  local row = math.floor((vim.fn.winheight(0) - height) / 2)
+  local col = math.floor((vim.fn.winwidth(0) - width) / 2)
+
+  -- 创建浮动窗口
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    width = width,
+    height = height,
+    row = row,
+    col = col,
+    border = "rounded",
+    title = title or "Astra Information",
+    title_pos = "center",
+    style = "minimal",
+  })
+
+  -- 设置窗口选项
+  vim.api.nvim_win_set_option(win, "wrap", false)
+  vim.api.nvim_win_set_option(win, "cursorline", true)
+
+  -- 设置高亮
+  vim.api.nvim_win_set_option(win, "winhighlight", "Normal:Normal,FloatBorder:FloatBorder")
+
+  -- 设置键盘映射来关闭窗口
+  local opts = { buffer = buf, silent = true }
+  vim.keymap.set('n', 'q', function()
+    vim.api.nvim_win_close(win, true)
+  end, opts)
+  vim.keymap.set('n', '<Esc>', function()
+    vim.api.nvim_win_close(win, true)
+  end, opts)
+
+  -- 自动关闭（可选）
+  vim.defer_fn(function()
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_close(win, true)
+    end
+  end, 30000) -- 30秒后自动关闭
+end
+
 function M.setup(opts)
   opts = opts or {}
 
@@ -164,54 +617,9 @@ function M.setup(opts)
     static_build = false,
   }, opts)
 
-  -- Initialize with automatic configuration discovery
-  local config = M:discover_configuration()
-
-  -- Store configuration status for command availability
-  M.has_config = (config ~= nil)
-
-  -- Check if configuration exists and is enabled
-  local is_config_enabled = config and config.enabled ~= false
-
-  -- Always initialize key mappings and basic commands for plugin functionality
-  M:setup_key_mappings()
-
-  -- Only initialize full commands and enable features if configuration is available and enabled
-  if is_config_enabled then
-    M:initialize_commands()
-
-    -- Enable sync features from configuration
-    if config.auto_sync then
-      M:start_auto_sync()
-    end
-
-    if config.sync_on_save then
-      M:setup_autocmds()
-    end
-
-    vim.notify("Astra: Configuration loaded successfully", vim.log.levels.INFO)
-  else
-    -- Always initialize basic commands for configuration management
-    vim.api.nvim_create_user_command("AstraInit", function()
-      M:init_config()
-    end, { desc = "Initialize Astra configuration" })
-
-    -- Always make AstraConfigTest available for testing
-    vim.api.nvim_create_user_command("AstraConfigTest", function()
-      M:test_config()
-    end, { desc = "Test configuration discovery and show detailed parsing results" })
-
-    vim.api.nvim_create_user_command("AstraEnable", function()
-      M:enable_plugin()
-    end, { desc = "Enable Astra plugin" })
-
-    -- Show plugin disabled notification
-    if config and config.enabled == false then
-      M:show_plugin_disabled_notification()
-    else
-      vim.notify("Astra: No configuration found. Use :AstraInit to create configuration", vim.log.levels.INFO)
-    end
-  end
+  -- 检查插件状态并分级初始化
+  local status = M:check_plugin_status()
+  M:initialize_by_status(status)
 end
 
 -- Automatic configuration discovery
