@@ -766,12 +766,18 @@ end
 
 -- Intelligent remote path generation
 function M:get_remote_path(local_file_path)
+  -- Input validation
+  if not local_file_path or local_file_path == "" then
+    vim.notify("Astra: No file path provided for remote path calculation", vim.log.levels.ERROR)
+    return nil
+  end
+
   local config = self:discover_configuration()
   if not config then
     vim.notify("Astra: Cannot determine configuration", vim.log.levels.ERROR)
     return nil
   end
-  
+
   -- If local_file_path is relative, make it absolute
   if not local_file_path:match("^/") then
     local_file_path = vim.fn.fnamemodify(local_file_path, ":p")
@@ -1360,15 +1366,25 @@ end
 -- Upload current file (convenience function)
 function M:upload_current_file()
   local file_info = M:get_current_file_info()
-  if file_info and file_info.absolute_path then
-    local remote_path = M:get_remote_path(file_info.absolute_path)
-    if remote_path then
-      M:upload_file(file_info.absolute_path, remote_path)
-    else
-      vim.notify("Astra: Cannot determine remote path for current file", vim.log.levels.ERROR)
-    end
+
+  -- Check if we have a valid file path
+  if not file_info or not file_info.absolute_path or file_info.absolute_path == "" then
+    vim.notify("Astra: No current file to upload - please open a file first", vim.log.levels.WARN)
+    return
+  end
+
+  -- Check if the file actually exists on disk
+  if vim.fn.filereadable(file_info.absolute_path) == 0 then
+    vim.notify("Astra: Current file '" .. file_info.file_name .. "' does not exist on disk or is not saved", vim.log.levels.WARN)
+    return
+  end
+
+  local remote_path = M:get_remote_path(file_info.absolute_path)
+  if remote_path then
+    vim.notify("Astra: Uploading '" .. file_info.file_name .. "'...", vim.log.levels.INFO)
+    M:upload_file(file_info.absolute_path, remote_path)
   else
-    vim.notify("Astra: No current file to upload", vim.log.levels.ERROR)
+    vim.notify("Astra: Cannot determine remote path for current file", vim.log.levels.ERROR)
   end
 end
 
