@@ -172,11 +172,13 @@ function M:check_backend_binary()
   return vim.fn.executable(binary_path) == 1
 end
 
--- 获取正确的二进制路径
+-- 获取正确的二进制路径（默认优先静态构建）
 function M:get_binary_path()
-  if M.config and M.config.static_build then
+  -- 优先使用静态构建路径（与Makefile保持一致）
+  if vim.fn.executable(M.static_binary_path) == 1 then
     return M.static_binary_path
   end
+  -- 回退到标准构建路径
   return M.binary_path
 end
 
@@ -344,8 +346,8 @@ function M:build_core()
 
   vim.notify("Astra: Building core binary...", vim.log.levels.INFO)
 
-  -- 使用异步任务构建
-  local job = vim.fn.jobstart("cargo build --release", {
+  -- 使用异步任务构建（静态链接）
+  local job = vim.fn.jobstart("cargo build --target x86_64-unknown-linux-musl --release", {
     cwd = build_dir,
     on_stdout = function(_, data)
       if data and #data > 0 then
@@ -614,7 +616,7 @@ function M.setup(opts)
     auto_sync = false,
     sync_on_save = false,
     sync_interval = 30000,
-    static_build = false,
+    static_build = true,  -- 默认使用静态构建（与Makefile保持一致）
   }, opts)
 
   -- 检查插件状态并分级初始化
@@ -689,6 +691,7 @@ function M:discover_configuration()
         M.config.private_key_path = config_info.private_key_path
         M.config.remote_path = config_info.remote_path
         M.config.local_path = config_info.local_path
+        M.config.static_build = config_info.static_build
       end
       
       return config_info
@@ -727,6 +730,14 @@ function M:parse_config_output(output)
   config.sync_on_save = output:match("Sync on save: ([^\n]+)") == "true"
   local sync_interval_str = output:match("Sync interval: ([^\n]+)") or "30000"
   config.sync_interval = tonumber(sync_interval_str) or 30000
+  -- Extract static build option
+  local static_build_str = output:match("Static build: ([^\n]+)")
+  if static_build_str then
+    config.static_build = static_build_str == "true"
+  else
+    -- Default to true for static build (consistent with Makefile)
+    config.static_build = true
+  end
 
   -- Extract enabled status
   local enabled_str = output:match("Enabled: ([^\n]+)")

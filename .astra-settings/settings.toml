@@ -10,3 +10,4 @@ local_path = "~/work/rust/astra.nvim"
 auto_sync = false
 sync_on_save = false
 sync_interval = 30000
+static_build = true
