@@ -1058,6 +1058,10 @@ function M:initialize_commands()
     end
   end, { desc = "Quick upload current file" })
 
+  vim.api.nvim_create_user_command("AstraUploadMulti", function()
+    M:upload_with_selection()
+  end, { desc = "Upload multiple files with selection" })
+
   vim.api.nvim_create_user_command("AstraHelp", function()
     M:show_help()
   end, { desc = "Show Astra.nvim command help" })
@@ -1130,6 +1134,8 @@ function M:setup_key_mappings()
     { desc = "Astra: Upload current file", noremap = true, silent = true })
   vim.keymap.set('n', leader .. 'Aum', function() M:upload_with_selection() end,
     { desc = "Astra: Upload multiple files", noremap = true, silent = true })
+  vim.keymap.set('x', leader .. 'Aus', function() M:upload_selected_files() end,
+    { desc = "Astra: Upload selected files", noremap = true, silent = true })
   vim.keymap.set('x', leader .. 'Au', function() M:upload_selected_files() end,
     { desc = "Astra: Upload selected files", noremap = true, silent = true })
 
@@ -1348,6 +1354,21 @@ function M:check_status()
     vim.notify("Astra Status:\n" .. output)
   else
     vim.notify("Astra: Failed to check status", vim.log.levels.ERROR)
+  end
+end
+
+-- Upload current file (convenience function)
+function M:upload_current_file()
+  local file_info = M:get_current_file_info()
+  if file_info and file_info.absolute_path then
+    local remote_path = M:get_remote_path(file_info.absolute_path)
+    if remote_path then
+      M:upload_file(file_info.absolute_path, remote_path)
+    else
+      vim.notify("Astra: Cannot determine remote path for current file", vim.log.levels.ERROR)
+    end
+  else
+    vim.notify("Astra: No current file to upload", vim.log.levels.ERROR)
   end
 end
 
