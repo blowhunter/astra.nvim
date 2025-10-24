@@ -4,6 +4,7 @@ local M = {}
 M.core_path = vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim/astra-core")
 M.binary_path = vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim/astra-core/target/release/astra-core")
 M.static_binary_path = vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim/astra-core/target/x86_64-unknown-linux-musl/release/astra-core")
+M.debug_binary_path = vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim/astra-core/target/debug/astra-core")
 M.config_cache = nil
 M.last_config_check = 0
 M.sync_queue = {}
@@ -174,10 +175,22 @@ end
 
 -- 获取正确的二进制路径（默认优先静态构建）
 function M:get_binary_path()
+  -- 开发环境：优先检查本地项目的debug构建
+  local local_debug_path = vim.fn.getcwd() .. "/astra-core/target/debug/astra-core"
+  if vim.fn.executable(local_debug_path) == 1 then
+    return local_debug_path
+  end
+
+  -- 检查插件目录的debug构建
+  if vim.fn.executable(M.debug_binary_path) == 1 then
+    return M.debug_binary_path
+  end
+
   -- 优先使用静态构建路径（与Makefile保持一致）
   if vim.fn.executable(M.static_binary_path) == 1 then
     return M.static_binary_path
   end
+
   -- 回退到标准构建路径
   return M.binary_path
 end
@@ -1308,9 +1321,15 @@ function M:sync_files(mode)
     return
   end
 
-  local static_build = M.config and M.config.static_build or false
-  local binary_path = static_build and M.static_binary_path or M.binary_path
-  local cmd = string.format("%s sync --mode %s", binary_path, mode)
+  -- Get current file for sync
+  local file_info = M:get_current_file_info()
+  if not file_info or not file_info.absolute_path then
+    vim.notify("Astra: No current file to sync", vim.log.levels.WARN)
+    return
+  end
+
+  local binary_path = M:get_binary_path()
+  local cmd = string.format("%s sync --mode %s %s", binary_path, mode, file_info.absolute_path)
 
   vim.notify("Astra: Starting sync operation in background...", vim.log.levels.INFO)
 
@@ -1417,8 +1436,7 @@ function M:upload_file(local_path, remote_path)
     end
   end
 
-  local static_build = M.config and M.config.static_build or false
-  local binary_path = static_build and M.static_binary_path or M.binary_path
+  local binary_path = M:get_binary_path()
   local cmd = string.format(
     "timeout 30s %s upload --local %s --remote %s",
     binary_path,
