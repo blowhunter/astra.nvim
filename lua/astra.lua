@@ -1381,7 +1381,7 @@ function M:upload_current_file()
 
   local remote_path = M:get_remote_path(file_info.absolute_path)
   if remote_path then
-    vim.notify("Astra: Uploading '" .. file_info.file_name .. "'...", vim.log.levels.INFO)
+    -- Let upload_file handle the notification to avoid duplicates
     M:upload_file(file_info.absolute_path, remote_path)
   else
     vim.notify("Astra: Cannot determine remote path for current file", vim.log.levels.ERROR)
@@ -1429,6 +1429,9 @@ function M:upload_file(local_path, remote_path)
   -- 使用LazyVim风格通知开始上传
   M.show_lazyvim_notification("🚀 Uploading: " .. vim.fn.fnamemodify(local_path, ":t"), vim.log.levels.INFO)
 
+  -- Generate unique notification ID for this upload operation
+  local notification_id = local_path .. ":" .. remote_path .. ":" .. os.time()
+
   local job_handle = vim.fn.jobstart(cmd, {
     stdout_buffered = true,
     stderr_buffered = true,
@@ -1459,22 +1462,28 @@ function M:upload_file(local_path, remote_path)
         M.last_sync_errors[job_id].error_count = M.last_sync_errors[job_id].error_count + 1
         M.last_sync_errors[job_id].last_error_time = current_time
 
-        -- Provide user-friendly error messages
-        local error_msg = "Astra: Upload error"
-        if is_timeout then
-          error_msg = "Astra: Upload timeout - server may be unreachable or slow to respond"
-        elseif is_connection_error then
-          error_msg = "Astra: Connection failed - server may be down or network issues"
-        elseif is_auth_error then
-          error_msg = "Astra: Authentication failed - check your credentials"
-        end
-
-        -- 使用LazyVim风格通知上传错误
-        M.show_lazyvim_notification("❌ Upload failed: " .. vim.fn.fnamemodify(local_path, ":t"), vim.log.levels.ERROR)
+        -- Don't send notification here, let on_exit handle it
+        -- This prevents duplicate error notifications
       end
     end,
-    on_exit = function(job_id, exit_code, event_type)
-      if exit_code ~= 0 then
+    on_exit = function(_, exit_code, event_type)
+      -- Use a simple debouncing mechanism to prevent duplicate notifications
+      local file_key = vim.fn.fnamemodify(local_path, ":t")
+      local current_time = vim.loop.hrtime() / 1000000000
+
+      -- Check if we recently sent a notification for this file
+      if M.last_notification_time and M.last_notification_file then
+        if M.last_notification_file == file_key and
+           (current_time - M.last_notification_time) < 2.0 then
+          return -- Skip duplicate notification
+        end
+      end
+
+      if exit_code == 0 then
+        -- Success case (might not have been caught by stdout)
+        M.show_lazyvim_notification("✅ Uploaded: " .. file_key, vim.log.levels.INFO)
+        M.last_sync_errors[job_id] = nil
+      else
         -- Handle specific exit codes
         local error_msg = "Astra: Failed to upload file\n" .. local_path .. " -> " .. remote_path
         if exit_code == 124 then -- timeout exit code
@@ -1484,7 +1493,7 @@ function M:upload_file(local_path, remote_path)
         end
 
         -- 使用LazyVim风格通知上传失败
-        M.show_lazyvim_notification("❌ Upload failed: " .. vim.fn.fnamemodify(local_path, ":t"), vim.log.levels.ERROR)
+        M.show_lazyvim_notification("❌ Upload failed: " .. file_key, vim.log.levels.ERROR)
 
         -- Update error tracking for backoff
         if not M.last_sync_errors[job_id] then
@@ -1494,6 +1503,10 @@ function M:upload_file(local_path, remote_path)
           M.last_sync_errors[job_id].last_error_time = current_time
         end
       end
+
+      -- Record the notification to prevent duplicates
+      M.last_notification_file = file_key
+      M.last_notification_time = current_time
     end,
   })
 
