@@ -282,6 +282,11 @@ function M:setup_no_config_mode()
     M:show_help_no_config()
   end, { desc = "Show Astra help" })
 
+  -- 🔗 别名命令 (Aliases) - 保持向后兼容
+  vim.api.nvim_create_user_command("AstraInit", function()
+    M:init_config()
+  end, { desc = "Initialize Astra configuration (alias for AstraConfigInit)" })
+
   -- 仅设置必要的快捷键
   vim.keymap.set('n', leader .. 'Arc', function() M:init_config() end,
     { desc = "Astra: Initialize config", noremap = true, silent = true })
