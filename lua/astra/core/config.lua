@@ -3,6 +3,65 @@
 
 local M = {}
 
+-- 安全的 Vim API 访问（用于测试模式）
+local safe_vim = {}
+if vim and vim.fn then
+  safe_vim.fn = vim.fn
+else
+  safe_vim.fn = {
+    getcwd = function()
+      return "."
+    end,
+    filereadable = function(path)
+      local file = io.open(path, "r")
+      if file then
+        io.close(file)
+        return 1
+      end
+      return 0
+    end,
+    readfile = function(path)
+      local file = io.open(path, "r")
+      if not file then
+        return nil
+      end
+      local lines = {}
+      for line in file:lines() do
+        table.insert(lines, line)
+      end
+      io.close(file)
+      return lines
+    end,
+    writefile = function(lines, path)
+      local file = io.open(path, "w")
+      if file then
+        for _, line in ipairs(lines) do
+          file:write(line .. "\n")
+        end
+        io.close(file)
+        return true
+      end
+      return false
+    end,
+    expand = function(expr)
+      if expr == "~" then
+        return os.getenv("HOME") or ""
+      end
+      return expr
+    end,
+    fnamemodify = function(path, mods)
+      if mods == ":t" then
+        return path:match("([^/]+)$") or ""
+      elseif mods == ":p" then
+        return path
+      elseif mods == ":p:h" then
+        return path:match("(.*/)") or ""
+      end
+      return path
+    end
+  }
+end
+
 -- 默认配置（公共配置层）
 M.default_config = {
   -- 基础连接配置
@@ -12,7 +71,7 @@ M.default_config = {
   password = nil,
   private_key_path = "~/.ssh/id_rsa",
   remote_path = "",
-  local_path = vim.fn.getcwd(),
+  local_path = safe_vim.fn.getcwd(),
 
   -- 功能开关
   auto_sync = false,
@@ -90,11 +149,11 @@ end
 
 -- 发现项目配置文件
 function M.discover_project_config()
-  local cwd = vim.fn.getcwd()
+  local cwd = safe_vim.fn.getcwd()
 
   for _, filename in ipairs(M.project_config_files) do
     local full_path = cwd .. "/" .. filename
-    if vim.fn.filereadable(full_path) == 1 then
+    if safe_vim.fn.filereadable(full_path) == 1 then
       local format = M._detect_format(filename)
       return {
         path = full_path,
@@ -149,7 +208,9 @@ function M._load_toml(path)
   local config, err = toml.parse(config_str)
 
   if err then
-    vim.notify("❌ Failed to parse TOML configuration: " .. err, vim.log.levels.ERROR)
+    if vim and vim.notify then
+      vim.notify("❌ Failed to parse TOML configuration: " .. err, vim.log.levels.ERROR)
+    end
     return nil
   end
 
@@ -162,7 +223,7 @@ end
 
 -- 加载 JSON 配置文件
 function M._load_json(path)
-  local content = vim.fn.readfile(path)
+  local content = safe_vim.fn.readfile(path)
   if not content or #content == 0 then
     return nil
   end
@@ -171,7 +232,9 @@ function M._load_json(path)
   local ok, config = pcall(vim.json.decode, config_str)
 
   if not ok then
-    vim.notify("❌ Failed to parse JSON configuration: " .. config, vim.log.levels.ERROR)
+    if vim and vim.notify then
+      vim.notify("❌ Failed to parse JSON configuration: " .. config, vim.log.levels.ERROR)
+    end
     return nil
   end
 
@@ -184,7 +247,7 @@ function M._load_json(path)
       password = config.password,
       private_key_path = config.privateKeyPath,
       remote_path = config.remotePath,
-      local_path = config.localPath or vim.fn.getcwd()
+      local_path = config.localPath or safe_vim.fn.getcwd()
     }
   end
 
@@ -210,16 +273,18 @@ end
 
 -- 初始化项目配置文件
 function M.init_project_config()
-  local cwd = vim.fn.getcwd()
+  local cwd = safe_vim.fn.getcwd()
   local config_path = cwd .. "/.astra.toml"
 
-  if vim.fn.filereadable(config_path) == 1 then
-    vim.notify("⚠️  Project configuration already exists: " .. config_path, vim.log.levels.WARN)
+  if safe_vim.fn.filereadable(config_path) == 1 then
+    if vim and vim.notify then
+      vim.notify("⚠️  Project configuration already exists: " .. config_path, vim.log.levels.WARN)
+    end
     return
   end
 
   -- 创建默认项目配置
-  local project_name = vim.fn.fnamemodify(cwd, ":t")
+  local project_name = safe_vim.fn.fnamemodify(cwd, ":t")
   local default_project_config = {
     host = "your-server.com",
     port = 22,
@@ -240,14 +305,19 @@ function M.init_project_config()
   local toml_content = M._generate_toml_content(default_project_config)
 
   -- 写入配置文件
-  local ok, err = pcall(vim.fn.writefile, vim.split(toml_content, "\n"), config_path)
+  local lines = vim.split(toml_content, "\n")
+  local ok, err = pcall(safe_vim.fn.writefile, lines, config_path)
   if not ok then
-    vim.notify("❌ Failed to create project configuration: " .. err, vim.log.levels.ERROR)
+    if vim and vim.notify then
+      vim.notify("❌ Failed to create project configuration: " .. err, vim.log.levels.ERROR)
+    end
     return
   end
 
-  vim.notify("✅ Project configuration created: " .. config_path, vim.log.levels.INFO)
-  vim.notify("💡 Please edit the configuration file and update the connection details", vim.log.levels.INFO)
+  if vim and vim.notify then
+    vim.notify("✅ Project configuration created: " .. config_path, vim.log.levels.INFO)
+    vim.notify("💡 Please edit the configuration file and update the connection details", vim.log.levels.INFO)
+  end
 
   -- 重新初始化核心模块
   local Core = require("astra.core")

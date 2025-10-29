@@ -102,35 +102,29 @@ function M._execute_backend_command(cmd_args, callback)
       if data and #data > 0 then
         for _, line in ipairs(data) do
           if line and line ~= "" then
-            vim.notify("Backend Error: " .. line, vim.log.levels.ERROR)
+            vim.notify("Error: " .. line, vim.log.levels.ERROR)
           end
         end
       end
     end,
     on_exit = function(_, exit_code)
-      local success = exit_code == 0
-      local message = success and "Operation completed successfully" or "Operation failed"
-
-      if callback then
-        callback(success, message, exit_code)
+      if exit_code == 0 then
+        if callback then callback(true, "Command completed successfully") end
       else
-        vim.notify((success and "✅" or "❌") .. " " .. message,
-                   success and vim.log.levels.INFO or vim.log.levels.ERROR)
+        if callback then callback(false, "Command failed with exit code " .. exit_code) end
       end
     end
   })
 
   if job <= 0 then
-    local error_msg = "Failed to execute backend command"
-    vim.notify("❌ " .. error_msg, vim.log.levels.ERROR)
-    if callback then callback(false, error_msg) end
-    return false
+    vim.notify("❌ Failed to start backend command", vim.log.levels.ERROR)
+    if callback then callback(false, "Failed to start command") end
   end
 
-  return true
+  return job
 end
 
--- 上传当前文件
+-- 上传文件
 function M.upload()
   local file_info = M._get_current_file()
   if not file_info then
@@ -200,9 +194,7 @@ end
 -- 检查状态
 function M.status()
   local cmd_args = "status"
-
   vim.notify("🔍 Checking status...", vim.log.levels.INFO)
-
   M._execute_backend_command(cmd_args, function(success, message)
     if success then
       vim.notify("✅ Status check completed", vim.log.levels.INFO)
@@ -210,90 +202,6 @@ function M.status()
       vim.notify("❌ Status check failed", vim.log.levels.ERROR)
     end
   end)
-end
-
--- 上传选中文件（Visual 模式）
-function M.upload_selected()
-  -- 获取选中的文件范围
-  local start_pos = vim.fn.getpos("'<")
-  local end_pos = vim.fn.getpos("'>")
-
-  if start_pos[2] == 0 or end_pos[2] == 0 then
-    vim.notify("❌ No files selected", vim.log.levels.ERROR)
-    return
-  end
-
-  -- 在 Visual 模式下，通常是文件名选择
-  -- 这里简化为处理当前文件
-  local file_info = M._get_current_file()
-  if not file_info then
-    vim.notify("❌ No current file to upload", vim.log.levels.ERROR)
-    return
-  end
-
-  vim.notify("📤 Uploading selected file: " .. file_info.name, vim.log.levels.INFO)
-
-  local remote_path = M._build_remote_path(file_info.path)
-  local cmd_args = string.format('upload --local "%s" --remote "%s"', file_info.path, remote_path)
-
-  M._execute_backend_command(cmd_args, function(success, message)
-    if success then
-      vim.notify("✅ Selected file uploaded successfully: " .. file_info.name, vim.log.levels.INFO)
-    else
-      vim.notify("❌ Selected file upload failed: " .. file_info.name, vim.log.levels.ERROR)
-    end
-  end)
-end
-
--- 上传多个文件
-function M.upload_multi()
-  -- 打开文件选择器
-  vim.ui.select(vim.fn.glob("**/*", false, true), {
-    prompt = "Select files to upload:",
-    format_item = function(item)
-      return vim.fn.fnamemodify(item, ":p:.")
-    end
-  }, function(files)
-    if not files or #files == 0 then
-      return
-    end
-
-    -- 处理单个文件或多个文件
-    if type(files) == "string" then
-      files = {files}
-    end
-
-    vim.notify("📤 Uploading " .. #files .. " file(s)...", vim.log.levels.INFO)
-
-    local uploaded_count = 0
-    local failed_count = 0
-
-    for _, file_path in ipairs(files) do
-      local remote_path = M._build_remote_path(file_path)
-      local cmd_args = string.format('upload --local "%s" --remote "%s"', file_path, remote_path)
-
-      M._execute_backend_command(cmd_args, function(success, message)
-        if success then
-          uploaded_count = uploaded_count + 1
-        else
-          failed_count = failed_count + 1
-        end
-
-        -- 检查是否所有文件都处理完毕
-        if uploaded_count + failed_count == #files then
-          vim.notify(string.format("✅ Upload completed: %d succeeded, %d failed",
-                                   uploaded_count, failed_count), vim.log.levels.INFO)
-        end
-      end)
-    end
-  end)
-end
-
--- 清除同步队列
-function M.clear_queue()
-  vim.notify("🧹 Clearing sync queue...", vim.log.levels.INFO)
-  -- 这里可以实现清除内部队列的逻辑
-  vim.notify("✅ Sync queue cleared", vim.log.levels.INFO)
 end
 
 -- 显示版本信息
@@ -313,64 +221,6 @@ function M.version()
   else
     vim.notify("❌ No binary available", vim.log.levels.ERROR)
   end
-end
-
--- 批量同步
-function M.sync_batch()
-  local cmd_args = "sync --mode auto"
-
-  vim.notify("🔄 Starting batch sync...", vim.log.levels.INFO)
-
-  M._execute_backend_command(cmd_args, function(success, message)
-    if success then
-      vim.notify("✅ Batch sync completed successfully", vim.log.levels.INFO)
-    else
-      vim.notify("❌ Batch sync failed", vim.log.levels.ERROR)
-    end
-  end)
-end
-
--- 强制上传（覆盖远程）
-function M.force_upload()
-  local file_info = M._get_current_file()
-  if not file_info then
-    vim.notify("❌ No current file to upload", vim.log.levels.ERROR)
-    return
-  end
-
-  local cmd_args = string.format('sync --files "%s" --mode upload', file_info.path)
-
-  vim.notify("📤 Force uploading " .. file_info.name .. "...", vim.log.levels.INFO)
-
-  M._execute_backend_command(cmd_args, function(success, message)
-    if success then
-      vim.notify("✅ Force upload completed: " .. file_info.name, vim.log.levels.INFO)
-    else
-      vim.notify("❌ Force upload failed: " .. file_info.name, vim.log.levels.ERROR)
-    end
-  end)
-end
-
--- 强制下载（覆盖本地）
-function M.force_download()
-  local file_info = M._get_current_file()
-  if not file_info then
-    vim.notify("❌ No current file to download", vim.log.levels.ERROR)
-    return
-  end
-
-  local cmd_args = string.format('sync --files "%s" --mode download', file_info.path)
-
-  vim.notify("📥 Force downloading " .. file_info.name .. "...", vim.log.levels.INFO)
-
-  M._execute_backend_command(cmd_args, function(success, message)
-    if success then
-      vim.notify("✅ Force download completed: " .. file_info.name, vim.log.levels.INFO)
-      vim.cmd("edit")  -- 重新加载文件
-    else
-      vim.notify("❌ Force download failed: " .. file_info.name, vim.log.levels.ERROR)
-    end
-  end)
 end
 
 return M

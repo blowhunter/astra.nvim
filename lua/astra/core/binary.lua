@@ -3,9 +3,61 @@
 
 local M = {}
 
+-- 安全的 Vim API 访问（用于测试模式）
+local safe_vim = {}
+if vim and vim.fn then
+  safe_vim.fn = vim.fn
+else
+  safe_vim.fn = {
+    expand = function(expr)
+      if expr == "%:p" then
+        return ""
+      elseif expr == "%:t" then
+        return ""
+      elseif expr == "%:p:h" then
+        return ""
+      elseif expr:match("^~") then
+        return os.getenv("HOME") .. expr:sub(2)
+      end
+      return expr
+    end,
+    executable = function(path)
+      return os.execute("test -x " .. path .. " 2>/dev/null") == 0 and 1 or 0
+    end,
+    getcwd = function()
+      return "."
+    end,
+    system = function(cmd)
+      local handle = io.popen(cmd)
+      local result = handle:read("*all")
+      handle:close()
+      return result
+    end,
+    filereadable = function(path)
+      local file = io.open(path, "r")
+      if file then
+        io.close(file)
+        return 1
+      end
+      return 0
+    end,
+    writefile = function(lines, path)
+      local file = io.open(path, "w")
+      if file then
+        for _, line in ipairs(lines) do
+          file:write(line .. "\n")
+        end
+        io.close(file)
+        return true
+      end
+      return false
+    end
+  }
+end
+
 -- 二进制文件路径配置
 M.paths = {
-  plugin = vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim"),
+  plugin = safe_vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim"),
   release = "target/release/astra-core",
   debug = "target/debug/astra-core",
   static = "target/x86_64-unknown-linux-musl/release/astra-core"
@@ -14,8 +66,8 @@ M.paths = {
 -- 获取二进制文件路径
 function M.get_binary_path()
   -- 1. 优先检查本地项目构建
-  local local_debug = vim.fn.getcwd() .. "/astra-core/" .. M.paths.debug
-  if vim.fn.executable(local_debug) == 1 then
+  local local_debug = safe_vim.fn.getcwd() .. "/astra-core/" .. M.paths.debug
+  if safe_vim.fn.executable(local_debug) == 1 then
     return local_debug
   end
 
@@ -29,7 +81,7 @@ function M.get_binary_path()
   }
 
   for _, path in ipairs(plugin_paths) do
-    if vim.fn.executable(path) == 1 then
+    if safe_vim.fn.executable(path) == 1 then
       return path
     end
   end
@@ -51,8 +103,8 @@ function M.validate()
   end
 
   -- 测试二进制文件是否可执行
-  local test_result = vim.fn.system(binary_path .. " --help", "")
-  if vim.v.shell_error ~= 0 then
+  local test_result = safe_vim.fn.system(binary_path .. " --help", "")
+  if os.execute(binary_path .. " --help >/dev/null 2>&1") ~= 0 then
     return {
       available = false,
       path = binary_path,
