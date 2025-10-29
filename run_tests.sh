@@ -6,7 +6,7 @@ echo "🚀 Astra.nvim Test Suite"
 echo "========================================"
 
 # 设置 Lua 路径
-export LUA_PATH="./lua/?.lua;./lua/?/init.lua;./tests/?.lua"
+export LUA_PATH="./lua/?.lua;./lua/?/init.lua;./tests/?.lua;./tests/?/init.lua"
 
 # 运行测试
 nvim --headless -c "
