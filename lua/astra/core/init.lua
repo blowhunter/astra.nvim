@@ -71,6 +71,11 @@ end
 
 -- 注册基本命令
 function M._register_basic_commands()
+  -- 始终注册帮助命令
+  vim.api.nvim_create_user_command("AstraHelp", function()
+    M._show_help()
+  end, { desc = "Show Astra help" })
+
   if not M.state.binary_available then
     -- 只有二进制管理相关命令
     vim.api.nvim_create_user_command("AstraBuild", function()
@@ -99,24 +104,26 @@ function M._register_full_commands()
   -- 包含基本命令
   M._register_basic_commands()
 
-  -- 完整功能命令
-  local full_commands = {
-    "AstraUpload", "AstraDownload", "AstraSync", "AstraStatus",
-    "AstraUploadMulti", "AstraSyncClear", "AstraVersion"
-  }
+  -- 完整功能命令 - 只注册实际实现的命令
+  vim.api.nvim_create_user_command("AstraUpload", function()
+    Sync.upload()
+  end, { desc = "Astra: Upload current file" })
 
-  for _, cmd in ipairs(full_commands) do
-    local cmd_func = function()
-      local module = cmd:match("Astra(%w+)")
-      if Sync[module:lower()] then
-        Sync[module:lower()]()
-      end
-    end
+  vim.api.nvim_create_user_command("AstraDownload", function()
+    Sync.download()
+  end, { desc = "Astra: Download current file" })
 
-    vim.api.nvim_create_user_command(cmd, cmd_func, {
-      desc = "Astra: " .. module
-    })
-  end
+  vim.api.nvim_create_user_command("AstraSync", function()
+    Sync.sync()
+  end, { desc = "Astra: Sync current file" })
+
+  vim.api.nvim_create_user_command("AstraStatus", function()
+    Sync.status()
+  end, { desc = "Astra: Check sync status" })
+
+  vim.api.nvim_create_user_command("AstraVersion", function()
+    Sync.version()
+  end, { desc = "Show Astra version" })
 end
 
 -- 注册基本键映射
@@ -141,32 +148,94 @@ function M._register_full_keymaps()
   -- 包含基本键映射
   M._register_basic_keymaps()
 
-  -- 完整功能键映射
+  -- 完整功能键映射 - 只保留实际可用的核心功能
   local leader = vim.g.maplocalleader or vim.g.mapleader or "\\"
-  local full_mappings = {
-    ['Au'] = 'upload',
-    ['Ad'] = 'download',
-    ['As'] = 'sync',
-    ['Ass'] = 'status',
-    ['Av'] = 'version',
-    ['Aus'] = 'upload_selected'
-  }
 
-  for mapping, func in pairs(full_mappings) do
-    local keymap_func = function()
-      if Sync[func] then
-        Sync[func]()
-      end
-    end
+  -- 文件操作核心功能
+  vim.keymap.set('n', leader .. 'Au', function() Sync.upload() end,
+    { desc = "Astra: Upload current file", noremap = true, silent = true })
 
-    if mapping == 'Aus' then
-      vim.keymap.set('x', leader .. mapping, keymap_func,
-        { desc = "Astra: " .. func, noremap = true, silent = true })
+  vim.keymap.set('n', leader .. 'Ad', function() Sync.download() end,
+    { desc = "Astra: Download current file", noremap = true, silent = true })
+
+  vim.keymap.set('n', leader .. 'As', function() Sync.sync() end,
+    { desc = "Astra: Sync current file", noremap = true, silent = true })
+
+  vim.keymap.set('n', leader .. 'Ai', function() Sync.status() end,
+    { desc = "Astra: Check status", noremap = true, silent = true })
+
+  vim.keymap.set('n', leader .. 'Av', function() Sync.version() end,
+    { desc = "Astra: Show version", noremap = true, silent = true })
+end
+
+-- 显示帮助信息
+function M._show_help()
+  local level = M.state.functionality_level
+  local help_lines = {}
+
+  table.insert(help_lines, "🚀 Astra.nvim - SFTP File Synchronization")
+  table.insert(help_lines, "")
+
+  if level == "none" then
+    table.insert(help_lines, "当前状态：未初始化")
+    table.insert(help_lines, "")
+    table.insert(help_lines, "可用命令：")
+    table.insert(help_lines, "  :AstraHelp     - 显示此帮助信息")
+  elseif level == "basic" then
+    table.insert(help_lines, "当前状态：基础功能模式")
+    table.insert(help_lines, "")
+
+    if not M.state.binary_available then
+      table.insert(help_lines, "可用命令：")
+      table.insert(help_lines, "  :AstraHelp     - 显示帮助信息")
+      table.insert(help_lines, "  :AstraBuild    - 构建核心二进制文件")
+      table.insert(help_lines, "  :AstraInstall  - 安装核心二进制文件")
     else
-      vim.keymap.set('n', leader .. mapping, keymap_func,
-        { desc = "Astra: " .. func, noremap = true, silent = true })
+      table.insert(help_lines, "可用命令：")
+      table.insert(help_lines, "  :AstraHelp       - 显示帮助信息")
+      table.insert(help_lines, "  :AstraInit       - 初始化项目配置")
+      table.insert(help_lines, "  :AstraQuickSetup - 快速配置向导")
+    end
+  elseif level == "full" then
+    table.insert(help_lines, "当前状态：完整功能模式")
+    table.insert(help_lines, "")
+    table.insert(help_lines, "核心文件操作：")
+    table.insert(help_lines, "  :AstraUpload   - 上传当前文件")
+    table.insert(help_lines, "  :AstraDownload - 下载当前文件")
+    table.insert(help_lines, "  :AstraSync     - 同步当前文件")
+    table.insert(help_lines, "  :AstraStatus   - 检查同步状态")
+    table.insert(help_lines, "  :AstraVersion  - 显示版本信息")
+    table.insert(help_lines, "")
+    table.insert(help_lines, "配置管理：")
+    table.insert(help_lines, "  :AstraInit       - 初始化项目配置")
+    table.insert(help_lines, "  :AstraQuickSetup - 快速配置向导")
+    table.insert(help_lines, "  :AstraHelp       - 显示帮助信息")
+  end
+
+  table.insert(help_lines, "")
+  table.insert(help_lines, "快捷键：")
+  table.insert(help_lines, "  <leader>Ah - 显示帮助")
+  table.insert(help_lines, "  <leader>Av - 显示版本")
+
+  if level == "full" then
+    table.insert(help_lines, "  <leader>Au - 上传当前文件")
+    table.insert(help_lines, "  <leader>Ad - 下载当前文件")
+    table.insert(help_lines, "  <leader>As - 同步当前文件")
+    table.insert(help_lines, "  <leader>Ai - 检查状态")
+  end
+
+  if level == "basic" then
+    if not M.state.binary_available then
+      table.insert(help_lines, "  <leader>Ab - 构建核心")
+    else
+      table.insert(help_lines, "  <leader>Ac - 初始化配置")
+      table.insert(help_lines, "  <leader>Aq - 快速配置")
     end
   end
+
+  -- 使用 vim.notify 显示帮助
+  local help_text = table.concat(help_lines, "\n")
+  vim.notify(help_text, vim.log.levels.INFO)
 end
 
 -- 获取当前状态

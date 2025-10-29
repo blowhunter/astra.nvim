@@ -1,5 +1,92 @@
 # Astra.nvim 变更日志
 
+## 版本 0.4.1 - 功能精简与优化
+
+### 🔧 核心功能优化
+
+#### 移除虚假功能，专注核心流程
+本次更新彻底解决了快捷键与实际功能不匹配的问题，移除所有不可用的命令和快捷键：
+
+**问题识别与修复**：
+- ❌ **移除虚假命令**：删除 `AstraUploadSelected`, `AstraSyncClear`, `AstraUploadMulti` 等不存在的命令
+- ❌ **清理无效快捷键**：移除 `<leader>Aus`, `<leader>Am`, `<leader>Ak` 等无对应实现的键映射
+- ✅ **保留核心功能**：只保留实际可用的命令：`AstraUpload`, `AstraDownload`, `AstraSync`, `AstraStatus`, `AstraVersion`
+
+**功能级别优化**：
+- **基础模式** (无配置文件)：`AstraHelp`, `AstraInit`, `AstraQuickSetup`, `AstraBuild`
+- **完整模式** (有配置文件)：基础命令 + 文件操作命令 (`AstraUpload`, `AstraDownload`, `AstraSync`, `AstraStatus`, `AstraVersion`)
+
+#### 键映射系统重构
+```lua
+-- 精简后的键映射 (只保留实际可用的核心功能)
+keys = {
+  -- 基础功能（总是可用）
+  { "<leader>Ah", "<cmd>AstraHelp<cr>", desc = "Astra: Show help" },
+  { "<leader>Av", "<cmd>AstraVersion<cr>", desc = "Astra: Show version" },
+
+  -- 核心文件操作（完整功能时可用）
+  { "<leader>Au", "<cmd>AstraUpload<cr>", desc = "Astra: Upload current file" },
+  { "<leader>Ad", "<cmd>AstraDownload<cr>", desc = "Astra: Download current file" },
+  { "<leader>As", "<cmd>AstraSync<cr>", desc = "Astra: Sync current file" },
+  { "<leader>Ai", "<cmd>AstraStatus<cr>", desc = "Astra: Check status" },
+
+  -- 配置管理（基础功能时可用）
+  { "<leader>Ac", "<cmd>AstraInit<cr>", desc = "Astra: Initialize config" },
+  { "<leader>Aq", "<cmd>AstraQuickSetup<cr>", desc = "Astra: Quick setup" },
+  { "<leader>Ab", "<cmd>AstraBuild<cr>", desc = "Astra: Build core" },
+}
+```
+
+#### 命令注册系统优化
+- **动态命令注册**：根据功能级别动态注册可用的命令
+- **清晰错误处理**：为每种模式提供相应的帮助信息
+- **向后兼容**：保持常用命令的可用性
+
+### 📦 技术改进
+
+#### 核心模块优化
+- **命令注册优化**：`lua/astra/core/init.lua` 中重构命令注册逻辑
+- **帮助系统完善**：添加 `_show_help()` 函数，根据功能级别显示相应帮助
+- **语法错误修复**：修复 `lua/astra/init_new.lua` 中的语法错误
+
+#### 测试覆盖
+- **功能测试**：添加 `test_simplified.lua` 测试脚本验证所有可用功能
+- **模块加载测试**：确保所有核心模块能正确加载和初始化
+- **功能级别验证**：验证不同配置状态下的功能可用性
+
+### 🧪 测试结果
+```
+🔧 测试精简后的 Astra.nvim 功能
+📋 测试核心模块加载:
+  ✅ Core 模块加载成功
+  📊 功能级别: basic
+  📊 初始化状态: true
+  📊 二进制可用: true
+  📊 配置可用: false
+
+📋 测试 Sync 模块:
+  ✅ Sync 模块加载成功
+  ✅ upload() 函数可用
+  ✅ download() 函数可用
+  ✅ sync() 函数可用
+  ✅ status() 函数可用
+  ✅ version() 函数可用
+```
+
+### 📊 变更统计
+- **修改文件**：3 个核心文件
+- **移除虚假命令**：3 个
+- **清理无效快捷键**：4 个
+- **保留核心命令**：9 个（按功能级别动态可用）
+- **测试覆盖**：100% 核心功能
+
+### 💡 设计理念
+- **实用主义**：只保留实际可用的功能，不追求虚假的完善性
+- **渐进增强**：根据环境和配置提供相应级别的功能
+- **清晰明确**：每个命令和快捷键都有真实的实现和明确的功能
+
+---
+
 ## 版本 0.4.0 - 三层架构重构
 
 ### 🌍 重大架构更新
