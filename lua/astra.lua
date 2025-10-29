@@ -1,18 +1,67 @@
 local M = {}
 
--- Core configuration and paths
-M.core_path = vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim/astra-core")
-M.binary_path = vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim/astra-core/target/release/astra-core")
-M.static_binary_path = vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim/astra-core/target/x86_64-unknown-linux-musl/release/astra-core")
-M.debug_binary_path = vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim/astra-core/target/debug/astra-core")
-M.config_cache = nil
-M.last_config_check = 0
-M.sync_queue = {}
-M.sync_queue_running = false
-M.last_sync_errors = {}
-M.notification_history = {}
-M.notification_queue = {}
-M.notification_running = false
+-- 尝试加载新的三层架构
+local NewAstra_ok, NewAstra = pcall(require, "astra.init_new")
+
+if NewAstra_ok then
+  -- 新架构可用：重定向所有函数到新架构
+  M = NewAstra
+else
+  -- 新架构不可用：加载旧的兼容实现
+  vim.notify("⚠️  Astra: Using legacy compatibility mode", vim.log.levels.WARN)
+
+  -- Core configuration and paths (legacy)
+  M.core_path = vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim/astra-core")
+  M.binary_path = vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim/astra-core/target/release/astra-core")
+  M.static_binary_path = vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim/astra-core/target/x86_64-unknown-linux-musl/release/astra-core")
+  M.debug_binary_path = vim.fn.expand("~/.local/share/nvim/lazy/astra.nvim/astra-core/target/debug/astra-core")
+  M.config_cache = nil
+  M.last_config_check = 0
+  M.sync_queue = {}
+  M.sync_queue_running = false
+  M.last_sync_errors = {}
+  M.notification_history = {}
+  M.notification_queue = {}
+  M.notification_running = false
+
+  -- 兼容模式的默认实现
+  function M.setup(opts)
+    vim.notify("❌ Astra: Legacy mode not supported in this version", vim.log.levels.ERROR)
+    vim.notify("💡 Please ensure the new architecture is properly installed", vim.log.levels.WARN)
+    return M
+  end
+
+  function M.check()
+    vim.notify("❌ Astra: New architecture not available", vim.log.levels.ERROR)
+    return false
+  end
+
+  function M.reinitialize()
+    vim.notify("❌ Astra: Cannot reinitialize in legacy mode", vim.log.levels.ERROR)
+    return M
+  end
+
+  function M.get_status()
+    return {
+      initialized = false,
+      functionality_level = "none",
+      message = "Legacy mode - new architecture not available"
+    }
+  end
+
+  function M.get_config()
+    return {}
+  end
+
+  function M.update_config()
+    vim.notify("❌ Astra: Configuration update not available in legacy mode", vim.log.levels.ERROR)
+    return false
+  end
+
+  function M.is_available()
+    return false
+  end
+end
 
 -- LazyVim风格通知管理
 local notification_config = {

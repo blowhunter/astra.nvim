@@ -180,7 +180,7 @@ function M._should_auto_sync_file(file_path)
   end
 
   -- 检查包含模式
-  if #config.include_patterns > 0
+  if #config.include_patterns > 0 then
     local should_include = false
     for _, pattern in ipairs(config.include_patterns) do
       if file_path:match(pattern) then
