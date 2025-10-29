@@ -668,22 +668,10 @@ function M:discover_configuration()
     return nil
   end
 
-  -- Smart binary path selection - try both static and release builds
-  local binary_path = nil
-  local static_binary_exists = vim.loop.fs_stat(M.static_binary_path) ~= nil
-  local release_binary_exists = vim.loop.fs_stat(M.binary_path) ~= nil
+  -- Smart binary path selection using get_binary_path method
+  local binary_path = M:get_binary_path()
 
-  -- Check if config exists, use default if not
-  local static_build = M.config and M.config.static_build or false
-
-  if static_build and static_binary_exists then
-    binary_path = M.static_binary_path
-  elseif release_binary_exists then
-    binary_path = M.binary_path
-  elseif static_binary_exists then
-    -- Fallback to static binary if release doesn't exist
-    binary_path = M.static_binary_path
-  else
+  if not binary_path or vim.fn.executable(binary_path) ~= 1 then
     vim.notify("Astra: No binary file found. Please build the project first.", vim.log.levels.ERROR)
     M.config_cache = nil
     M.last_config_check = current_time
