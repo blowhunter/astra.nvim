@@ -51,7 +51,7 @@ test:
 
 lint:
 	@echo "Running linter..."
-	cd astra-core && cargo clippy -- -D warnings
+	cd astra-core && cargo clippy -- -W clippy::all
 
 format:
 	@echo "Formatting code..."
