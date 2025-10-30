@@ -11,7 +11,9 @@ mod tests {
         let cli = Cli::try_parse_from(&["astra", "init", "--config", "test.json"]).unwrap();
 
         match cli.command {
-            Commands::Init { config } => {
+            Commands::Init {
+                config,
+            } => {
                 assert_eq!(config, "test.json");
             }
             _ => panic!("Expected Init command"),
@@ -43,7 +45,9 @@ mod tests {
         let cli = Cli::try_parse_from(&["astra", "status", "--config", "test.json"]).unwrap();
 
         match cli.command {
-            Commands::Status { config } => {
+            Commands::Status {
+                config,
+            } => {
                 assert_eq!(config, Some("test.json".to_string()));
             }
             _ => panic!("Expected Status command"),

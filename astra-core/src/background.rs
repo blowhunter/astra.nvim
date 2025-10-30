@@ -32,9 +32,17 @@ pub struct BackgroundTask {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TaskType {
     FullSync,
-    FileUpload { local_path: PathBuf, remote_path: PathBuf },
-    FileDownload { remote_path: PathBuf, local_path: PathBuf },
-    CustomOperations { operations: Vec<SyncOperation> },
+    FileUpload {
+        local_path: PathBuf,
+        remote_path: PathBuf,
+    },
+    FileDownload {
+        remote_path: PathBuf,
+        local_path: PathBuf,
+    },
+    CustomOperations {
+        operations: Vec<SyncOperation>,
+    },
 }
 
 /// Background task manager
@@ -83,15 +91,18 @@ impl TaskManager {
             }
         });
 
-        Self { tasks, sender }
+        Self {
+            tasks,
+            sender,
+        }
     }
 
     /// Submit a new background task
     pub async fn submit_task(&self, task: BackgroundTask) -> AstraResult<String> {
         let task_id = task.id.clone();
-        self.sender.send(task).map_err(|e| {
-            AstraError::TaskError(format!("Failed to submit task: {}", e))
-        })?;
+        self.sender
+            .send(task)
+            .map_err(|e| AstraError::TaskError(format!("Failed to submit task: {}", e)))?;
         Ok(task_id)
     }
 
@@ -113,7 +124,9 @@ impl TaskManager {
         let now = SystemTime::now();
 
         tasks.retain(|_, task| {
-            let age = now.duration_since(task.updated_at).unwrap_or(Duration::ZERO);
+            let age = now
+                .duration_since(task.updated_at)
+                .unwrap_or(Duration::ZERO);
             age < max_age || matches!(task.status, TaskStatus::Running | TaskStatus::Pending)
         });
     }
@@ -127,11 +140,15 @@ impl TaskManager {
                 // For full sync, we need a config
                 // This is a simplified version - in practice, you'd pass config
                 return Err(AstraError::TaskError(
-                    "Full sync requires configuration - not implemented for background tasks yet".to_string()
+                    "Full sync requires configuration - not implemented for background tasks yet"
+                        .to_string(),
                 ));
             }
 
-            TaskType::FileUpload { local_path, remote_path } => {
+            TaskType::FileUpload {
+                local_path,
+                remote_path,
+            } => {
                 // For file upload, we need to create a new SFTP client
                 // This is a simplified version - you'd pass config
                 warn!("File upload background task not fully implemented yet");
@@ -144,7 +161,10 @@ impl TaskManager {
                 })
             }
 
-            TaskType::FileDownload { remote_path, local_path } => {
+            TaskType::FileDownload {
+                remote_path,
+                local_path,
+            } => {
                 warn!("File download background task not fully implemented yet");
                 Ok(SyncResult {
                     success: true,
@@ -155,7 +175,9 @@ impl TaskManager {
                 })
             }
 
-            TaskType::CustomOperations { operations } => {
+            TaskType::CustomOperations {
+                operations,
+            } => {
                 warn!("Custom operations background task not fully implemented yet");
                 let mut result = SyncResult {
                     success: true,
@@ -168,10 +190,14 @@ impl TaskManager {
                 for operation in operations {
                     match operation.operation_type {
                         crate::types::OperationType::Upload => {
-                            result.files_transferred.push(operation.local_path.to_string_lossy().to_string());
+                            result
+                                .files_transferred
+                                .push(operation.local_path.to_string_lossy().to_string());
                         }
                         crate::types::OperationType::Download => {
-                            result.files_transferred.push(operation.local_path.to_string_lossy().to_string());
+                            result
+                                .files_transferred
+                                .push(operation.local_path.to_string_lossy().to_string());
                         }
                         _ => {}
                     }
@@ -198,16 +224,24 @@ impl TaskCommands {
         }
 
         println!("Background Tasks:");
-        println!("{:<20} {:<15} {:<20} {:<15} {}",
-                 "Task ID", "Type", "Status", "Created", "Result");
+        println!(
+            "{:<20} {:<15} {:<20} {:<15} {}",
+            "Task ID", "Type", "Status", "Created", "Result"
+        );
         println!("{}", "-".repeat(80));
 
         for task in tasks {
             let task_type_str = match &task.task_type {
                 TaskType::FullSync => "Full Sync",
-                TaskType::FileUpload { .. } => "File Upload",
-                TaskType::FileDownload { .. } => "File Download",
-                TaskType::CustomOperations { .. } => "Custom Ops",
+                TaskType::FileUpload {
+                    ..
+                } => "File Upload",
+                TaskType::FileDownload {
+                    ..
+                } => "File Download",
+                TaskType::CustomOperations {
+                    ..
+                } => "Custom Ops",
             };
 
             let status_str = match &task.status {
@@ -217,8 +251,7 @@ impl TaskCommands {
                 TaskStatus::Failed(err) => &format!("Failed: {}", err),
             };
 
-            let created_str = humantime::format_rfc3339_seconds(task.created_at)
-                .to_string();
+            let created_str = humantime::format_rfc3339_seconds(task.created_at).to_string();
 
             let result_str = if let Some(result) = &task.result {
                 format!("{} files", result.files_transferred.len())
@@ -226,12 +259,14 @@ impl TaskCommands {
                 "-".to_string()
             };
 
-            println!("{:<20} {:<15} {:<20} {:<15} {}",
-                     &task.id[..task.id.len().min(20)],
-                     task_type_str,
-                     status_str,
-                     &created_str[..created_str.len().min(15)],
-                     result_str);
+            println!(
+                "{:<20} {:<15} {:<20} {:<15} {}",
+                &task.id[..task.id.len().min(20)],
+                task_type_str,
+                status_str,
+                &created_str[..created_str.len().min(15)],
+                result_str
+            );
         }
 
         Ok(())

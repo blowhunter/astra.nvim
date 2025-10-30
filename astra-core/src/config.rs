@@ -1,8 +1,7 @@
 use crate::error::{AstraError, AstraResult};
 use crate::types::{AstraTomlConfig, SftpConfig, VsCodeSftpConfig};
-use std::env;
-use std::fs;
 use std::path::Path;
+use std::{env, fs};
 
 pub struct ConfigReader {
     base_dir: String,
@@ -44,7 +43,11 @@ impl ConfigReader {
     pub fn expand_tilde_remote(path: &str, username: &str) -> String {
         if let Some(rest) = path.strip_prefix("~/") {
             // Convert ~/path to appropriate home directory/path
-            let home_dir = if username == "root" { "/root".to_string() } else { format!("/home/{}", username) };
+            let home_dir = if username == "root" {
+                "/root".to_string()
+            } else {
+                format!("/home/{}", username)
+            };
             format!("{}/{}", home_dir, rest)
         } else if path == "~" {
             // Convert ~ to appropriate home directory
@@ -294,4 +297,3 @@ impl ConfigReader {
         None
     }
 }
-

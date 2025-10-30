@@ -46,7 +46,10 @@ impl SftpClient {
             ));
         }
 
-        Ok(Self { session, config })
+        Ok(Self {
+            session,
+            config,
+        })
     }
 
     pub fn get_remote_files(&self, remote_path: &Path) -> AstraResult<Vec<FileStatus>> {

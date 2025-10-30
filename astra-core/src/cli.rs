@@ -3,10 +3,9 @@ use crate::error::AstraResult;
 use crate::sftp::SftpClient;
 use crate::types::{SftpConfig, SyncResult};
 use clap::{Parser, Subcommand};
-use serde_json;
 use std::fs;
 use std::path::Path;
-use tracing_subscriber;
+use {serde_json, tracing_subscriber};
 
 #[derive(Parser)]
 #[command(name = "astra")]
@@ -83,7 +82,9 @@ pub async fn run_cli(cli: Cli) -> AstraResult<()> {
     tracing_subscriber::fmt::init();
 
     match cli.command {
-        Commands::Init { config } => {
+        Commands::Init {
+            config,
+        } => {
             init_config(&config).await?;
         }
         Commands::Sync {
@@ -98,7 +99,9 @@ pub async fn run_cli(cli: Cli) -> AstraResult<()> {
                 sync_files(None, &mode, &files).await?;
             }
         }
-        Commands::Status { config } => {
+        Commands::Status {
+            config,
+        } => {
             if let Some(config_path) = config {
                 check_status(Some(&config_path)).await?;
             } else {
@@ -130,7 +133,9 @@ pub async fn run_cli(cli: Cli) -> AstraResult<()> {
                 download_single_file(None, &remote, &local).await?;
             }
         }
-        Commands::ConfigTest { config } => {
+        Commands::ConfigTest {
+            config,
+        } => {
             if let Some(config_path) = config {
                 test_config(Some(&config_path)).await?;
             } else {
@@ -363,9 +368,7 @@ async fn check_status(config_path: Option<&str>) -> AstraResult<()> {
 }
 
 async fn upload_single_file(
-    config_path: Option<&str>,
-    local_path: &str,
-    remote_path: &str,
+    config_path: Option<&str>, local_path: &str, remote_path: &str,
 ) -> AstraResult<()> {
     let config_reader = match config_path {
         Some(path) => ConfigReader::new(Some(path.to_string())),
@@ -384,9 +387,7 @@ async fn upload_single_file(
 }
 
 async fn download_single_file(
-    config_path: Option<&str>,
-    remote_path: &str,
-    local_path: &str,
+    config_path: Option<&str>, remote_path: &str, local_path: &str,
 ) -> AstraResult<()> {
     let config_reader = match config_path {
         Some(path) => ConfigReader::new(Some(path.to_string())),
