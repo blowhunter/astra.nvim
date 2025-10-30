@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, add-claude-github-actions-* ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, add-claude-github-actions-* ]
   release:
     types: [ published ]
 
