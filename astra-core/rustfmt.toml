@@ -1,0 +1,38 @@
+# Astra.core Rustfmt configuration
+# Based on Rust 2021 edition standards
+
+# Formatting options
+edition = "2021"
+
+# Control the width of formatted code
+max_width = 100
+tab_spaces = 4
+
+# Formatting风格
+fn_params_layout = "Compressed"
+
+# Struct和Enum的格式化
+struct_lit_width = 0
+
+# Import和Use语句
+imports_granularity = "Module"
+imports_layout = "Mixed"
+
+# 宏的格式化
+match_arm_blocks = true
+match_arm_leading_pipes = "Never"
+
+# 空行和换行
+empty_item_single_line = true
+fn_single_line = false
+where_single_line = false
+
+# 注释
+wrap_comments = true
+comment_width = 100
+
+# 其他选项
+force_explicit_abi = true
+use_try_shorthand = true
+use_field_init_shorthand = true
+merge_derives = true
