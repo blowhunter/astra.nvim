@@ -13,6 +13,7 @@ mod tests {
         fs::write(temp_dir.path().join("file2.txt"), "content2").unwrap();
 
         let config = SftpConfig {
+            enabled: Some(true),
             host: "test.com".to_string(),
             port: 22,
             username: "user".to_string(),
@@ -43,6 +44,7 @@ mod tests {
         fs::write(&test_file, "test content").unwrap();
 
         let config = SftpConfig {
+            enabled: Some(true),
             host: "test.com".to_string(),
             port: 22,
             username: "user".to_string(),

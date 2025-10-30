@@ -9,6 +9,7 @@ mod tests {
     #[test]
     fn test_config_serialization() {
         let config = SftpConfig {
+            enabled: Some(true),
             host: "test.com".to_string(),
             port: 22,
             username: "user".to_string(),
