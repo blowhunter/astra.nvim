@@ -466,25 +466,123 @@ function M._create_quick_config(config)
   end
 end
 
--- 显示配置信息
+-- 显示配置信息弹窗
 function M.info()
   local config_status = M.validate_project_config()
 
-  vim.notify("🔍 Astra Configuration Information:", vim.log.levels.INFO)
-  vim.notify("  Available: " .. (config_status.available and "✅ Yes" or "❌ No"), vim.log.levels.INFO)
+  local info_lines = {
+    "🔍 Astra Configuration Information",
+    "",
+    "📊 配置状态: " .. (config_status.available and "✅ 可用" or "❌ 不可用")
+  }
 
   if config_status.available then
-    vim.notify("  Path: " .. config_status.path, vim.log.levels.INFO)
-    vim.notify("  Format: " .. config_status.format, vim.log.levels.INFO)
+    table.insert(info_lines, "")
+    table.insert(info_lines, "📁 配置文件:")
+    table.insert(info_lines, "  路径: " .. config_status.path)
+    table.insert(info_lines, "  格式: " .. config_status.format:upper())
+    table.insert(info_lines, "  文件名: " .. config_status.filename)
 
     if config_status.config then
-      vim.notify("  Host: " .. config_status.config.host, vim.log.levels.INFO)
-      vim.notify("  Username: " .. config_status.config.username, vim.log.levels.INFO)
-      vim.notify("  Remote Path: " .. config_status.config.remote_path, vim.log.levels.INFO)
+      table.insert(info_lines, "")
+      table.insert(info_lines, "🌐 连接信息:")
+      table.insert(info_lines, "  主机: " .. config_status.config.host)
+      table.insert(info_lines, "  端口: " .. config_status.config.port)
+      table.insert(info_lines, "  用户名: " .. config_status.config.username)
+      table.insert(info_lines, "  密钥: " .. (config_status.config.password and "已设置" or "使用密钥文件"))
+      table.insert(info_lines, "  密钥文件: " .. (config_status.config.private_key_path or "未设置"))
+
+      table.insert(info_lines, "")
+      table.insert(info_lines, "📂 路径配置:")
+      table.insert(info_lines, "  本地路径: " .. config_status.config.local_path)
+      table.insert(info_lines, "  远程路径: " .. config_status.config.remote_path)
+
+      if config_status.config.auto_sync ~= nil then
+        table.insert(info_lines, "")
+        table.insert(info_lines, "⚙️ 同步设置:")
+        table.insert(info_lines, "  自动同步: " .. (config_status.config.auto_sync and "开启" or "关闭"))
+        table.insert(info_lines, "  保存时同步: " .. (config_status.config.sync_on_save and "开启" or "关闭"))
+        table.insert(info_lines, "  同步间隔: " .. (config_status.config.sync_interval / 1000) .. "s")
+      end
+
+      if config_status.config.exclude_patterns and #config_status.config.exclude_patterns > 0 then
+        table.insert(info_lines, "")
+        table.insert(info_lines, "🚫 排除规则:")
+        local exclude_preview = {}
+        for i, pattern in ipairs(config_status.config.exclude_patterns) do
+          if i <= 5 then
+            table.insert(exclude_preview, "  " .. pattern)
+          end
+        end
+        for _, pattern in ipairs(exclude_preview) do
+          table.insert(info_lines, pattern)
+        end
+        if #config_status.config.exclude_patterns > 5 then
+          table.insert(info_lines, "  ... 还有 " .. (#config_status.config.exclude_patterns - 5) .. " 个规则")
+        end
+      end
     end
   else
-    vim.notify("  Reason: " .. config_status.reason, vim.log.levels.WARN)
-    vim.notify("  Suggestion: " .. config_status.suggestion, vim.log.levels.INFO)
+    table.insert(info_lines, "")
+    table.insert(info_lines, "❌ 配置问题:")
+    table.insert(info_lines, "  原因: " .. config_status.reason)
+    table.insert(info_lines, "  建议: " .. config_status.suggestion)
+    table.insert(info_lines, "")
+    table.insert(info_lines, "💡 快速解决方案:")
+    table.insert(info_lines, "  1. 按 <leader>Ai 初始化配置")
+    table.insert(info_lines, "  2. 或运行 :AstraInit 命令")
+    table.insert(info_lines, "  3. 编辑配置文件设置服务器信息")
+  end
+
+  table.insert(info_lines, "")
+  table.insert(info_lines, "按 q 或 Esc 关闭此窗口")
+
+  -- 创建弹窗显示配置信息
+  local info_text = table.concat(info_lines, "\n")
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(info_text, "\n"))
+  vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
+  vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+  vim.api.nvim_buf_set_option(buf, "modifiable", false)
+
+  -- 设置语法高亮
+  vim.api.nvim_buf_set_option(buf, "filetype", "text")
+
+  -- 计算窗口大小
+  local ui = vim.api.nvim_list_uis()[1]
+  local width = math.min(80, ui.width - 10)
+  local height = math.min(#info_lines + 2, ui.height - 8)
+
+  local win_config = {
+    relative = "editor",
+    width = width,
+    height = height,
+    col = math.floor((ui.width - width) / 2),
+    row = math.floor((ui.height - height) / 2),
+    border = "rounded",
+    style = "minimal",
+    title = "Astra Configuration",
+    title_pos = "center",
+  }
+
+  local win = vim.api.nvim_open_win(buf, true, win_config)
+  vim.api.nvim_win_set_option(win, "wrap", true)
+  vim.api.nvim_win_set_option(win, "cursorline", true)
+
+  -- 设置退出快捷键
+  vim.keymap.set('n', 'q', '<cmd>q<cr>', { buffer = buf, silent = true })
+  vim.keymap.set('n', '<Esc>', '<cmd>q<cr>', { buffer = buf, silent = true })
+
+  -- 可选：添加快捷键进行快速操作
+  if not config_status.available then
+    vim.keymap.set('n', 'i', function()
+      vim.api.nvim_win_close(win, true)
+      M.init_project_config()
+    end, { buffer = buf, desc = "Initialize configuration", silent = true })
+
+    -- 更新帮助信息
+    info_lines[#info_lines - 1] = "按 i 初始化配置, q/Esc 关闭窗口"
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(table.concat(info_lines, "\n"), "\n"))
   end
 end
 
