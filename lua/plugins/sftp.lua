@@ -44,6 +44,238 @@ M._setup_plugin = function(opts)
   end
 end
 
+-- 动态状态检查函数
+M._check_status = function()
+  local status = {
+    core_loaded = false,
+    binary_available = false,
+    config_available = false,
+    current_file = vim.fn.expand("%:p") ~= ""
+  }
+
+  -- 检查核心模块
+  local ok_core, Core = pcall(require, "astra.core")
+  if ok_core and type(Core) == "table" then
+    status.core_loaded = true
+
+    -- 检查二进制文件
+    local ok_binary, Binary = pcall(require, "astra.core.binary")
+    if ok_binary and type(Binary) == "table" and Binary.validate then
+      local binary_status = Binary.validate()
+      status.binary_available = binary_status.available
+    end
+
+    -- 检查配置文件
+    local ok_config, Config = pcall(require, "astra.core.config")
+    if ok_config and type(Config) == "table" and Config.validate_project_config then
+      local config_status = Config.validate_project_config()
+      status.config_available = config_status.available
+    end
+  end
+
+  return status
+end
+
+-- 基础功能函数
+M._show_help = function()
+  local help_lines = {
+    "🚀 Astra.nvim - 动态快捷键系统",
+    "",
+    "基础功能 (始终可用):",
+    "  <leader>Ah - 显示帮助 (当前)",
+    "  <leader>Av - 显示版本信息",
+    "",
+    "配置管理 (智能处理):",
+    "  <leader>Ai - 初始化配置",
+    "  <leader>Ab - 构建二进制文件",
+    "  <leader>Ac - 查看当前配置",
+    "",
+    "文件操作 (状态感知):",
+    "  <leader>Au - 上传当前文件",
+    "  <leader>Ad - 下载当前文件",
+    "",
+    "同步功能 (条件执行):",
+    "  <leader>As - 同步整个项目",
+    "  <leader>Aa - 增量同步",
+    "",
+    "特性:",
+    "  ✓ 智能状态检测",
+    "  ✓ 自动错误处理",
+    "  ✓ 动态功能可用性",
+    "  ✓ 用户友好的提示",
+  }
+
+  local help_text = table.concat(help_lines, "\n")
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(help_text, "\n"))
+  vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
+  vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+  vim.api.nvim_buf_set_option(buf, "modifiable", false)
+
+  vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    width = math.min(60, vim.o.columns - 4),
+    height = math.min(#help_lines + 2, vim.o.lines - 4),
+    col = 2,
+    row = 2,
+    border = "single",
+    title = "Astra Dynamic Help",
+    title_pos = "center",
+  })
+
+  vim.keymap.set('n', 'q', '<cmd>q<cr>', { buffer = buf, silent = true })
+  vim.keymap.set('n', '<Esc>', '<cmd>q<cr>', { buffer = buf, silent = true })
+end
+
+M._show_version = function()
+  local status = M._check_status()
+
+  if status.binary_available then
+    local ok_binary, Binary = pcall(require, "astra.core.binary")
+    if ok_binary then
+      local binary_status = Binary.validate()
+      vim.notify("📊 Astra Version: " .. (binary_status.version or "unknown"), vim.log.levels.INFO)
+      vim.notify("🔧 Binary: " .. binary_status.path, vim.log.levels.INFO)
+      vim.notify("🏗️  Build Type: " .. binary_status.type, vim.log.levels.INFO)
+    end
+  else
+    vim.notify("📊 Astra: Plugin loaded", vim.log.levels.INFO)
+    vim.notify("❌ Binary not available - run :AstraBuild", vim.log.levels.WARN)
+  end
+
+  local status_info = string.format("状态: 核心=%s, 二进制=%s, 配置=%s",
+    status.core_loaded and "✅" or "❌",
+    status.binary_available and "✅" or "❌",
+    status.config_available and "✅" or "❌")
+  vim.notify(status_info, vim.log.levels.INFO)
+end
+
+-- 智能配置管理函数
+M._smart_init = function()
+  local status = M._check_status()
+
+  if status.config_available then
+    vim.notify("✅ 配置文件已存在", vim.log.levels.INFO)
+    vim.notify("💡 位置: 在当前项目目录的配置文件中", vim.log.levels.INFO)
+  else
+    vim.notify("🔧 正在初始化配置文件...", vim.log.levels.INFO)
+    vim.cmd("AstraInit")
+  end
+end
+
+M._smart_build = function()
+  local status = M._check_status()
+
+  if status.binary_available then
+    local ok_binary, Binary = pcall(require, "astra.core.binary")
+    if ok_binary then
+      local binary_status = Binary.validate()
+      vim.notify("✅ 二进制文件已存在", vim.log.levels.INFO)
+      vim.notify("📊 版本: " .. (binary_status.version or "unknown"), vim.log.levels.INFO)
+      vim.notify("🔧 路径: " .. binary_status.path, vim.log.levels.INFO)
+      vim.notify("💡 如需重新构建，请运行 :AstraBuild", vim.log.levels.INFO)
+    end
+  else
+    vim.notify("🔧 正在构建二进制文件...", vim.log.levels.INFO)
+    vim.cmd("AstraBuild")
+  end
+end
+
+M._smart_config = function()
+  local status = M._check_status()
+
+  if status.config_available then
+    vim.cmd("AstraConfig")
+  else
+    vim.notify("❌ 未找到配置文件", vim.log.levels.WARN)
+    vim.notify("💡 请运行 <leader>Ai 或 :AstraInit 来初始化配置", vim.log.levels.INFO)
+  end
+end
+
+-- 智能文件操作函数
+M._smart_upload = function()
+  local status = M._check_status()
+
+  if not status.current_file then
+    vim.notify("❌ 没有当前文件可上传", vim.log.levels.ERROR)
+    return
+  end
+
+  if not status.binary_available then
+    vim.notify("❌ 二进制文件不可用", vim.log.levels.ERROR)
+    vim.notify("💡 请先运行 <leader>Ab 构建二进制文件", vim.log.levels.INFO)
+    return
+  end
+
+  if not status.config_available then
+    vim.notify("❌ 配置文件不可用", vim.log.levels.ERROR)
+    vim.notify("💡 请先运行 <leader>Ai 初始化配置", vim.log.levels.INFO)
+    return
+  end
+
+  vim.cmd("AstraUpload")
+end
+
+M._smart_download = function()
+  local status = M._check_status()
+
+  if not status.current_file then
+    vim.notify("❌ 没有当前文件可下载", vim.log.levels.ERROR)
+    return
+  end
+
+  if not status.binary_available then
+    vim.notify("❌ 二进制文件不可用", vim.log.levels.ERROR)
+    vim.notify("💡 请先运行 <leader>Ab 构建二进制文件", vim.log.levels.INFO)
+    return
+  end
+
+  if not status.config_available then
+    vim.notify("❌ 配置文件不可用", vim.log.levels.ERROR)
+    vim.notify("💡 请先运行 <leader>Ai 初始化配置", vim.log.levels.INFO)
+    return
+  end
+
+  vim.cmd("AstraDownload")
+end
+
+-- 智能同步函数
+M._smart_sync = function()
+  local status = M._check_status()
+
+  if not status.binary_available then
+    vim.notify("❌ 二进制文件不可用", vim.log.levels.ERROR)
+    vim.notify("💡 请先运行 <leader>Ab 构建二进制文件", vim.log.levels.INFO)
+    return
+  end
+
+  if not status.config_available then
+    vim.notify("❌ 配置文件不可用", vim.log.levels.ERROR)
+    vim.notify("💡 请先运行 <leader>Ai 初始化配置", vim.log.levels.INFO)
+    return
+  end
+
+  vim.cmd("AstraSync")
+end
+
+M._smart_incremental_sync = function()
+  local status = M._check_status()
+
+  if not status.binary_available then
+    vim.notify("❌ 二进制文件不可用", vim.log.levels.ERROR)
+    vim.notify("💡 请先运行 <leader>Ab 构建二进制文件", vim.log.levels.INFO)
+    return
+  end
+
+  if not status.config_available then
+    vim.notify("❌ 配置文件不可用", vim.log.levels.ERROR)
+    vim.notify("💡 请先运行 <leader>Ai 初始化配置", vim.log.levels.INFO)
+    return
+  end
+
+  vim.cmd("AstraIncSync")
+end
+
 -- 核心命令注册
 M._register_core_commands = function()
     local function safe_require(module_name)
@@ -268,24 +500,24 @@ return {
     auto_save_config = false,
   },
 
-  -- 快捷键定义
+  -- 动态快捷键定义
   keys = {
-    -- 配置管理键映射
-    { "<leader>Ai", "<cmd>AstraInit<cr>", desc = "Astra: Initialize config" },
-    { "<leader>Ab", "<cmd>AstraBuild<cr>", desc = "Astra: Build binary" },
-    { "<leader>Ac", "<cmd>AstraConfig<cr>", desc = "Astra: Show config" },
+    -- 基础功能键映射（始终可用）
+    { "<leader>Ah", function() M._show_help() end, desc = "Astra: Show help" },
+    { "<leader>Av", function() M._show_version() end, desc = "Astra: Show version" },
 
-    -- 文件操作键映射
-    { "<leader>Au", "<cmd>AstraUpload<cr>", desc = "Astra: Upload file" },
-    { "<leader>Ad", "<cmd>AstraDownload<cr>", desc = "Astra: Download file" },
+    -- 配置管理键映射（智能处理）
+    { "<leader>Ai", function() M._smart_init() end, desc = "Astra: Initialize config" },
+    { "<leader>Ab", function() M._smart_build() end, desc = "Astra: Build binary" },
+    { "<leader>Ac", function() M._smart_config() end, desc = "Astra: Show config" },
 
-    -- 同步功能键映射
-    { "<leader>As", "<cmd>AstraSync<cr>", desc = "Astra: Sync project" },
-    { "<leader>Aa", "<cmd>AstraIncSync<cr>", desc = "Astra: Incremental sync" },
+    -- 文件操作键映射（状态感知）
+    { "<leader>Au", function() M._smart_upload() end, desc = "Astra: Upload file" },
+    { "<leader>Ad", function() M._smart_download() end, desc = "Astra: Download file" },
 
-    -- 信息查看键映射
-    { "<leader>Av", "<cmd>AstraVersion<cr>", desc = "Astra: Show version" },
-    { "<leader>Ah", "<cmd>AstraHelp<cr>", desc = "Astra: Show help" },
+    -- 同步功能键映射（条件执行）
+    { "<leader>As", function() M._smart_sync() end, desc = "Astra: Sync project" },
+    { "<leader>Aa", function() M._smart_incremental_sync() end, desc = "Astra: Incremental sync" },
   },
 
   -- 配置函数
