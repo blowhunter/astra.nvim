@@ -90,10 +90,10 @@ M.default_config = {
 
 -- 项目配置文件路径（按优先级排序）
 M.project_config_files = {
-  ".astra.toml",
-  ".astra/settings.toml",
-  ".vscode/sftp.json",
-  "astra.json"
+  ".vscode/sftp.json",  -- VSCode兼容格式，优先级最高
+  "astra.json",         -- 传统JSON格式
+  ".astra/settings.toml",  -- TOML格式，可选支持
+  ".astra.toml"         -- 简单TOML格式，可选支持
 }
 
 -- 验证项目配置文件
@@ -193,13 +193,16 @@ end
 
 -- 加载 TOML 配置文件
 function M._load_toml(path)
+  -- 尝试加载 toml.nvim 插件
   local ok, toml = pcall(require, "toml")
   if not ok then
-    vim.notify("❌ toml.nvim not installed, cannot parse TOML configuration", vim.log.levels.ERROR)
+    vim.notify("⚠️  toml.nvim not installed, TOML support disabled", vim.log.levels.WARN)
+    vim.notify("💡 Install with: :Lazy install toml.nvim", vim.log.levels.INFO)
+    vim.notify("💡 Or use JSON format: .vscode/sftp.json or astra.json", vim.log.levels.INFO)
     return nil
   end
 
-  local content = vim.fn.readfile(path)
+  local content = safe_vim.fn.readfile(path)
   if not content or #content == 0 then
     return nil
   end
@@ -208,9 +211,7 @@ function M._load_toml(path)
   local config, err = toml.parse(config_str)
 
   if err then
-    if vim and vim.notify then
-      vim.notify("❌ Failed to parse TOML configuration: " .. err, vim.log.levels.ERROR)
-    end
+    vim.notify("❌ Failed to parse TOML configuration: " .. err, vim.log.levels.ERROR)
     return nil
   end
 
@@ -274,7 +275,7 @@ end
 -- 初始化项目配置文件
 function M.init_project_config()
   local cwd = safe_vim.fn.getcwd()
-  local config_path = cwd .. "/.astra.toml"
+  local config_path = cwd .. "/astra.json"
 
   if safe_vim.fn.filereadable(config_path) == 1 then
     if vim and vim.notify then
@@ -301,12 +302,11 @@ function M.init_project_config()
     max_file_size = 10485760 -- 10MB
   }
 
-  -- 生成 TOML 配置文件内容
-  local toml_content = M._generate_toml_content(default_project_config)
+  -- 生成 JSON 配置文件内容
+  local json_content = vim.json.encode(default_project_config)
 
   -- 写入配置文件
-  local lines = vim.split(toml_content, "\n")
-  local ok, err = pcall(safe_vim.fn.writefile, lines, config_path)
+  local ok, err = pcall(safe_vim.fn.writefile, {json_content}, config_path)
   if not ok then
     if vim and vim.notify then
       vim.notify("❌ Failed to create project configuration: " .. err, vim.log.levels.ERROR)
