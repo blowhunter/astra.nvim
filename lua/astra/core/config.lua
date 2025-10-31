@@ -89,11 +89,14 @@ M.default_config = {
 }
 
 -- 项目配置文件路径（按优先级排序）
+-- 优先级原则：隐藏目录 > 隐藏文件 > 避免项目代码污染
 M.project_config_files = {
-  ".vscode/sftp.json",  -- VSCode兼容格式，优先级最高
-  "astra.json",         -- 传统JSON格式
-  ".astra/settings.toml",  -- TOML格式，可选支持
-  ".astra.toml"         -- 简单TOML格式，可选支持
+  ".astra-settings/settings.json",    -- 隐藏目录 + JSON格式，最高优先级
+  ".astra-settings/settings.toml",   -- 隐藏目录 + TOML格式，可选支持
+  ".astra-settings.json",            -- 隐藏文件 + JSON格式
+  ".astra-settings.toml",            -- 隐藏文件 + TOML格式，可选支持
+  ".astra.json",                     -- 项目根隐藏文件，兼容性
+  ".vscode/sftp.json"                -- VSCode兼容，最低优先级
 }
 
 -- 验证项目配置文件
@@ -275,11 +278,23 @@ end
 -- 初始化项目配置文件
 function M.init_project_config()
   local cwd = safe_vim.fn.getcwd()
-  local config_path = cwd .. "/astra.json"
+  local config_dir = cwd .. "/.astra-settings"
+  local config_path = config_dir .. "/settings.json"
 
-  if safe_vim.fn.filereadable(config_path) == 1 then
+  -- 检查是否已存在任何配置文件
+  local existing_config = M.discover_project_config()
+  if existing_config then
     if vim and vim.notify then
-      vim.notify("⚠️  Project configuration already exists: " .. config_path, vim.log.levels.WARN)
+      vim.notify("⚠️  Project configuration already exists: " .. existing_config.filename, vim.log.levels.WARN)
+    end
+    return
+  end
+
+  -- 创建隐藏目录
+  local ok, err = pcall(safe_vim.fn.mkdir, config_dir, "p")
+  if not ok then
+    if vim and vim.notify then
+      vim.notify("❌ Failed to create config directory: " .. err, vim.log.levels.ERROR)
     end
     return
   end
@@ -314,9 +329,38 @@ function M.init_project_config()
     return
   end
 
+  -- 创建 .gitignore 文件（如果不存在）
+  local gitignore_path = cwd .. "/.gitignore"
+  local gitignore_content = safe_vim.fn.readfile(gitignore_path)
+  local gitignore_needs_update = true
+
+  if gitignore_content then
+    local gitignore_text = table.concat(gitignore_content, "\n")
+    if gitignore_text:match("%.astra%-settings") then
+      gitignore_needs_update = false
+    end
+  end
+
+  if gitignore_needs_update then
+    local gitignore_entries = {
+      "# Astra.nvim configuration",
+      ".astra-settings/",
+      ""
+    }
+
+    -- 追加到现有 .gitignore 或创建新的
+    local final_gitignore = gitignore_content and gitignore_content or {}
+    for _, entry in ipairs(gitignore_entries) do
+      table.insert(final_gitignore, entry)
+    end
+
+    safe_vim.fn.writefile(final_gitignore, gitignore_path)
+  end
+
   if vim and vim.notify then
-    vim.notify("✅ Project configuration created: " .. config_path, vim.log.levels.INFO)
-    vim.notify("💡 Please edit the configuration file and update the connection details", vim.log.levels.INFO)
+    vim.notify("✅ Astra configuration created: " .. config_path, vim.log.levels.INFO)
+    vim.notify("💡 Configuration directory excluded from version control", vim.log.levels.INFO)
+    vim.notify("📝 Please edit the configuration with your server details", vim.log.levels.INFO)
   end
 
   -- 重新初始化核心模块
