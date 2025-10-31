@@ -267,4 +267,7 @@ function M.quick_test()
   end
 end
 
+-- 导出到全局变量，以便插件配置可以访问
+_G.TestCoreFunctionality = M
+
 return M
