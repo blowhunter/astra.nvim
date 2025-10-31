@@ -49,9 +49,9 @@ function M.setup(opts)
     if state.functionality_level == "full" then
       vim.notify("✅ Astra: Full functionality enabled", vim.log.levels.INFO)
     elseif state.functionality_level == "basic" then
-      vim.notify("⚠️  Astra: Basic mode - please run :AstraInit", vim.log.levels.WARN)
+      vim.notify("ℹ️  Astra: Basic mode - please run :AstraInit", vim.log.levels.INFO)
     else
-      vim.notify("⚠️  Astra: No configuration found", vim.log.levels.WARN)
+      vim.notify("ℹ️  Astra: No configuration found", vim.log.levels.INFO)
     end
   end
 

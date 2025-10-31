@@ -1,5 +1,5 @@
 -- Astra.nvim 同步功能模块
--- 负责文件的上传、下载和同步操作
+-- 专注8个核心功能：配置初始化、二进制构建、文件上传/下载、目录上传/下载、项目同步、增量同步、配置查看、版本查看
 
 local M = {}
 
@@ -18,24 +18,15 @@ function M.initialize()
   local Binary = require("astra.core.binary")
   M.binary_path = Binary.get_binary_path()
 
-  if not M.binary_path then
-    vim.notify("❌ No binary available for sync operations", vim.log.levels.ERROR)
-    return false
-  end
-
   -- 加载配置
   local Config = require("astra.core.config")
   local config_status = Config.validate_project_config()
 
-  if not config_status.available then
-    vim.notify("❌ No valid configuration for sync operations", vim.log.levels.ERROR)
-    return false
+  if config_status.available then
+    M.config = config_status.config
   end
 
-  M.config = config_status.config
   M.initialized = true
-
-  vim.notify("✅ Sync module initialized", vim.log.levels.INFO)
   return true
 end
 
@@ -56,6 +47,8 @@ end
 
 -- 获取相对路径
 function M._get_relative_path(file_path)
+  if not M.config then return file_path end
+
   local local_path = M.config.local_path
   if not local_path or local_path == "" then
     local_path = vim.fn.getcwd()
@@ -67,6 +60,8 @@ end
 
 -- 构建远程路径
 function M._build_remote_path(local_file_path)
+  if not M.config then return local_file_path end
+
   local relative_path = M._get_relative_path(local_file_path)
   local remote_path = M.config.remote_path
 
@@ -79,11 +74,14 @@ end
 
 -- 执行后端命令
 function M._execute_backend_command(cmd_args, callback)
-  if not M.initialized then
-    if not M.initialize() then
-      if callback then callback(false, "Sync module not initialized") end
+  if not M.binary_path then
+    local Binary = require("astra.core.binary")
+    local binary_status = Binary.validate()
+    if not binary_status.available then
+      if callback then callback(false, "No binary available") end
       return false
     end
+    M.binary_path = binary_status.path
   end
 
   local cmd = M.binary_path .. " " .. cmd_args
@@ -124,11 +122,16 @@ function M._execute_backend_command(cmd_args, callback)
   return job
 end
 
--- 上传文件
-function M.upload()
+-- 3. 单个文件上传
+function M.upload_current_file()
   local file_info = M._get_current_file()
   if not file_info then
     vim.notify("❌ No current file to upload", vim.log.levels.ERROR)
+    return
+  end
+
+  if not M.config then
+    vim.notify("❌ No configuration available", vim.log.levels.ERROR)
     return
   end
 
@@ -146,11 +149,16 @@ function M.upload()
   end)
 end
 
--- 下载文件
-function M.download()
+-- 4. 单个文件下载
+function M.download_current_file()
   local file_info = M._get_current_file()
   if not file_info then
     vim.notify("❌ No current file to download", vim.log.levels.ERROR)
+    return
+  end
+
+  if not M.config then
+    vim.notify("❌ No configuration available", vim.log.levels.ERROR)
     return
   end
 
@@ -170,29 +178,113 @@ function M.download()
   end)
 end
 
--- 同步文件
-function M.sync()
-  local file_info = M._get_current_file()
-  if not file_info then
-    vim.notify("❌ No current file to sync", vim.log.levels.ERROR)
+-- 5. 目录文件上传
+function M.upload_directory()
+  if not M.config then
+    vim.notify("❌ No configuration available", vim.log.levels.ERROR)
     return
   end
 
-  local cmd_args = string.format('sync --files "%s" --mode auto', file_info.path)
+  local current_dir = vim.fn.expand("%:p:h")
+  local dir_name = vim.fn.fnamemodify(current_dir, ":t")
+  local cmd_args = string.format('upload --local "%s" --remote "%s/%s"',
+                                current_dir, M.config.remote_path, dir_name)
 
-  vim.notify("🔄 Syncing " .. file_info.name .. "...", vim.log.levels.INFO)
+  vim.notify("📤 Uploading directory: " .. dir_name .. "...", vim.log.levels.INFO)
 
   M._execute_backend_command(cmd_args, function(success, message)
     if success then
-      vim.notify("✅ File synced successfully: " .. file_info.name, vim.log.levels.INFO)
+      vim.notify("✅ Directory uploaded successfully: " .. dir_name, vim.log.levels.INFO)
     else
-      vim.notify("❌ Sync failed: " .. file_info.name, vim.log.levels.ERROR)
+      vim.notify("❌ Directory upload failed: " .. dir_name, vim.log.levels.ERROR)
     end
   end)
 end
 
--- 检查状态
+-- 6. 目录文件下载
+function M.download_directory()
+  if not M.config then
+    vim.notify("❌ No configuration available", vim.log.levels.ERROR)
+    return
+  end
+
+  local current_dir = vim.fn.expand("%:p:h")
+  local dir_name = vim.fn.fnamemodify(current_dir, ":t")
+  local remote_dir = M.config.remote_path .. "/" .. dir_name
+  local cmd_args = string.format('download --remote "%s" --local "%s"', remote_dir, current_dir)
+
+  vim.notify("📥 Downloading directory: " .. dir_name .. "...", vim.log.levels.INFO)
+
+  M._execute_backend_command(cmd_args, function(success, message)
+    if success then
+      vim.notify("✅ Directory downloaded successfully: " .. dir_name, vim.log.levels.INFO)
+    else
+      vim.notify("❌ Directory download failed: " .. dir_name, vim.log.levels.ERROR)
+    end
+  end)
+end
+
+-- 7. 整个项目的上传下载
+function M.sync_project()
+  if not M.config then
+    vim.notify("❌ No configuration available", vim.log.levels.ERROR)
+    return
+  end
+
+  local cmd_args = string.format('sync --local "%s" --remote "%s" --mode bidirectional',
+                                M.config.local_path, M.config.remote_path)
+
+  vim.notify("🔄 Syncing entire project...", vim.log.levels.INFO)
+
+  M._execute_backend_command(cmd_args, function(success, message)
+    if success then
+      vim.notify("✅ Project synced successfully", vim.log.levels.INFO)
+    else
+      vim.notify("❌ Project sync failed", vim.log.levels.ERROR)
+    end
+  end)
+end
+
+-- 8. 增量上下同步的能力
+function M.incremental_sync()
+  if not M.config then
+    vim.notify("❌ No configuration available", vim.log.levels.ERROR)
+    return
+  end
+
+  local cmd_args = string.format('sync --local "%s" --remote "%s" --mode incremental',
+                                M.config.local_path, M.config.remote_path)
+
+  vim.notify("🔄 Performing incremental sync...", vim.log.levels.INFO)
+
+  M._execute_backend_command(cmd_args, function(success, message)
+    if success then
+      vim.notify("✅ Incremental sync completed", vim.log.levels.INFO)
+    else
+      vim.notify("❌ Incremental sync failed", vim.log.levels.ERROR)
+    end
+  end)
+end
+
+-- 兼容性函数（保持向后兼容）
+function M.upload()
+  M.upload_current_file()
+end
+
+function M.download()
+  M.download_current_file()
+end
+
+function M.sync()
+  M.incremental_sync()
+end
+
 function M.status()
+  if not M.config then
+    vim.notify("❌ No configuration available", vim.log.levels.ERROR)
+    return
+  end
+
   local cmd_args = "status"
   vim.notify("🔍 Checking status...", vim.log.levels.INFO)
   M._execute_backend_command(cmd_args, function(success, message)
@@ -204,20 +296,14 @@ function M.status()
   end)
 end
 
--- 显示版本信息
 function M.version()
   local Binary = require("astra.core.binary")
   local binary_status = Binary.validate()
 
   if binary_status.available then
-    local cmd_args = "--version"
-    M._execute_backend_command(cmd_args, function(success, output)
-      if success then
-        vim.notify("📊 Astra Version: " .. (binary_status.version or "unknown"), vim.log.levels.INFO)
-        vim.notify("🔧 Binary: " .. binary_status.path, vim.log.levels.INFO)
-        vim.notify("🏗️  Build Type: " .. binary_status.type, vim.log.levels.INFO)
-      end
-    end)
+    vim.notify("📊 Astra Version: " .. (binary_status.version or "unknown"), vim.log.levels.INFO)
+    vim.notify("🔧 Binary: " .. binary_status.path, vim.log.levels.INFO)
+    vim.notify("🏗️  Build Type: " .. binary_status.type, vim.log.levels.INFO)
   else
     vim.notify("❌ No binary available", vim.log.levels.ERROR)
   end

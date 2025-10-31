@@ -49,24 +49,6 @@ return {
     auto_save_config = false,    -- 关闭自动保存
   },
 
-  -- 精简键映射：只保留实际可用的核心功能
-  keys = {
-    -- 基础功能（总是可用）
-    { "<leader>Ah", "<cmd>AstraHelp<cr>", desc = "Astra: Show help", noremap = true, silent = true },
-    { "<leader>Av", "<cmd>AstraVersion<cr>", desc = "Astra: Show version", noremap = true, silent = true },
-
-    -- 核心文件操作（完整功能时可用）
-    { "<leader>Au", "<cmd>AstraUpload<cr>", desc = "Astra: Upload current file", noremap = true, silent = true },
-    { "<leader>Ad", "<cmd>AstraDownload<cr>", desc = "Astra: Download current file", noremap = true, silent = true },
-    { "<leader>As", "<cmd>AstraSync<cr>", desc = "Astra: Sync current file", noremap = true, silent = true },
-    { "<leader>Ai", "<cmd>AstraStatus<cr>", desc = "Astra: Check status", noremap = true, silent = true },
-
-    -- 配置管理（基础功能时可用）
-    { "<leader>Ac", "<cmd>AstraInit<cr>", desc = "Astra: Initialize config", noremap = true, silent = true },
-    { "<leader>Aq", "<cmd>AstraQuickSetup<cr>", desc = "Astra: Quick setup", noremap = true, silent = true },
-    { "<leader>Ab", "<cmd>AstraBuild<cr>", desc = "Astra: Build core", noremap = true, silent = true },
-  },
-
   -- 配置函数：使用新的三层架构
   config = function(_, opts)
     -- 直接加载和设置

@@ -76,6 +76,11 @@ function M._register_basic_commands()
     M._show_help()
   end, { desc = "Show Astra help" })
 
+  -- 主菜单命令
+  vim.api.nvim_create_user_command("AstraMenu", function()
+    M._show_main_menu()
+  end, { desc = "Show Astra main menu" })
+
   if not M.state.binary_available then
     -- 只有二进制管理相关命令
     vim.api.nvim_create_user_command("AstraBuild", function()
@@ -128,18 +133,40 @@ end
 
 -- 注册基本键映射
 function M._register_basic_keymaps()
-  local leader = vim.g.maplocalleader or vim.g.mapleader or "\\"
+  local leader = vim.g.maplocalleader or vim.g.mapleader or " "
+  local Binary = require("astra.core.binary")
 
+  -- 主菜单快捷键 - 通过命令触发
+  vim.keymap.set('n', leader .. 'A', ":AstraMenu<CR>",
+    { desc = "Astra Menu", noremap = true, silent = true })
+
+  -- 帮助和版本快捷键
+  vim.keymap.set('n', leader .. 'Ah', ":AstraHelp<CR>",
+    { desc = "Show Help", noremap = true, silent = true })
+
+  vim.keymap.set('n', leader .. 'Av', function()
+    local binary_status = Binary.validate()
+    if binary_status.available then
+      vim.notify("📊 Astra Version: " .. (binary_status.version or "unknown"), vim.log.levels.INFO)
+      vim.notify("🔧 Binary: " .. binary_status.path, vim.log.levels.INFO)
+      vim.notify("🏗️  Build Type: " .. binary_status.type, vim.log.levels.INFO)
+    else
+      vim.notify("❌ No binary available - run :AstraBuild", vim.log.levels.ERROR)
+    end
+  end, { desc = "Show Version", noremap = true, silent = true })
+
+  -- 没有二进制文件时的快捷键
   if not M.state.binary_available then
     vim.keymap.set('n', leader .. 'Abc', function() Binary.build() end,
-      { desc = "Astra: Build core", noremap = true, silent = true })
+      { desc = "Build Core", noremap = true, silent = true })
   end
 
+  -- 有二进制文件但没有配置文件时的快捷键
   if M.state.binary_available and not M.state.config_available then
     vim.keymap.set('n', leader .. 'Arc', function() Config.init_project_config() end,
-      { desc = "Astra: Initialize config", noremap = true, silent = true })
+      { desc = "Init Config", noremap = true, silent = true })
     vim.keymap.set('n', leader .. 'Aq', function() Config.quick_setup() end,
-      { desc = "Astra: Quick setup", noremap = true, silent = true })
+      { desc = "Quick Setup", noremap = true, silent = true })
   end
 end
 
@@ -164,89 +191,254 @@ function M._register_full_keymaps()
   vim.keymap.set('n', leader .. 'Ai', function() Sync.status() end,
     { desc = "Astra: Check status", noremap = true, silent = true })
 
-  vim.keymap.set('n', leader .. 'Av', function() Sync.version() end,
-    { desc = "Astra: Show version", noremap = true, silent = true })
+
 end
 
--- 显示帮助信息
-function M._show_help()
-  local level = M.state.functionality_level
-  local help_lines = {}
+-- 显示主菜单
+function M._show_main_menu()
+  -- 添加错误处理
+  local ok, result = pcall(function()
+    local level = M.state.functionality_level
+    local menu_lines = {}
 
-  table.insert(help_lines, "🚀 Astra.nvim - SFTP File Synchronization")
-  table.insert(help_lines, "")
+    table.insert(menu_lines, "🚀 Astra.nvim - 主菜单")
+    table.insert(menu_lines, "")
 
-  if level == "none" then
-    table.insert(help_lines, "当前状态：未初始化")
-    table.insert(help_lines, "")
-    table.insert(help_lines, "可用命令：")
-    table.insert(help_lines, "  :AstraHelp     - 显示此帮助信息")
-  elseif level == "basic" then
-    table.insert(help_lines, "当前状态：基础功能模式")
-    table.insert(help_lines, "")
-
-    if not M.state.binary_available then
-      table.insert(help_lines, "可用命令：")
-      table.insert(help_lines, "  :AstraHelp     - 显示帮助信息")
-      table.insert(help_lines, "  :AstraBuild    - 构建核心二进制文件")
-      table.insert(help_lines, "  :AstraInstall  - 安装核心二进制文件")
+    -- 状态信息
+    local status_text = "状态: "
+    if level == "full" then
+      status_text = status_text .. "✅ 完整功能"
+    elseif level == "basic" then
+      status_text = status_text .. "⚙️  基础功能"
     else
-      table.insert(help_lines, "可用命令：")
-      table.insert(help_lines, "  :AstraHelp       - 显示帮助信息")
-      table.insert(help_lines, "  :AstraInit       - 初始化项目配置")
-      table.insert(help_lines, "  :AstraQuickSetup - 快速配置向导")
+      status_text = status_text .. "❌ 未初始化"
     end
-  elseif level == "full" then
-    table.insert(help_lines, "当前状态：完整功能模式")
-    table.insert(help_lines, "")
-    table.insert(help_lines, "核心文件操作：")
-    table.insert(help_lines, "  :AstraUpload   - 上传当前文件")
-    table.insert(help_lines, "  :AstraDownload - 下载当前文件")
-    table.insert(help_lines, "  :AstraSync     - 同步当前文件")
-    table.insert(help_lines, "  :AstraStatus   - 检查同步状态")
-    table.insert(help_lines, "  :AstraVersion  - 显示版本信息")
-    table.insert(help_lines, "")
-    table.insert(help_lines, "配置管理：")
-    table.insert(help_lines, "  :AstraInit       - 初始化项目配置")
-    table.insert(help_lines, "  :AstraQuickSetup - 快速配置向导")
-    table.insert(help_lines, "  :AstraHelp       - 显示帮助信息")
-  end
+    table.insert(menu_lines, status_text)
+    table.insert(menu_lines, "")
 
-  table.insert(help_lines, "")
-  table.insert(help_lines, "快捷键：")
-  table.insert(help_lines, "  <leader>Ah - 显示帮助")
-  table.insert(help_lines, "  <leader>Av - 显示版本")
+    -- 核心命令
+    table.insert(menu_lines, "核心命令:")
+    table.insert(menu_lines, "  h) 帮助信息")
+    table.insert(menu_lines, "  v) 版本信息")
 
-  if level == "full" then
-    table.insert(help_lines, "  <leader>Au - 上传当前文件")
-    table.insert(help_lines, "  <leader>Ad - 下载当前文件")
-    table.insert(help_lines, "  <leader>As - 同步当前文件")
-    table.insert(help_lines, "  <leader>Ai - 检查状态")
-  end
+    -- 根据状态显示不同命令
+    if level == "full" then
+      table.insert(menu_lines, "")
+      table.insert(menu_lines, "文件操作:")
+      table.insert(menu_lines, "  u) 上传当前文件")
+      table.insert(menu_lines, "  d) 下载当前文件")
+      table.insert(menu_lines, "  s) 同步当前文件")
+      table.insert(menu_lines, "  i) 检查同步状态")
 
-  if level == "basic" then
-    if not M.state.binary_available then
-      table.insert(help_lines, "  <leader>Ab - 构建核心")
-    else
-      table.insert(help_lines, "  <leader>Ac - 初始化配置")
-      table.insert(help_lines, "  <leader>Aq - 快速配置")
+      table.insert(menu_lines, "")
+      table.insert(menu_lines, "配置管理:")
+      table.insert(menu_lines, "  c) 初始化配置")
+      table.insert(menu_lines, "  w) 快速配置向导")
+    elseif level == "basic" then
+      if not M.state.binary_available then
+        table.insert(menu_lines, "")
+        table.insert(menu_lines, "初始化:")
+        table.insert(menu_lines, "  b) 构建核心二进制")
+        table.insert(menu_lines, "  I) 安装预编译二进制")
+      else
+        table.insert(menu_lines, "")
+        table.insert(menu_lines, "配置:")
+        table.insert(menu_lines, "  c) 初始化项目配置")
+        table.insert(menu_lines, "  w) 快速配置向导")
+      end
     end
+
+    table.insert(menu_lines, "")
+    table.insert(menu_lines, "按 ESC 或 q 退出菜单")
+    table.insert(menu_lines, "按对应字母键执行命令")
+
+    -- 使用浮动窗口显示菜单
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, menu_lines)
+    vim.api.nvim_buf_set_option(buf, "modifiable", false)
+    vim.api.nvim_buf_set_option(buf, "filetype", "text")
+
+    local ui = vim.api.nvim_list_uis()[1]
+    local width = math.min(50, ui.width - 10)
+    local height = math.min(#menu_lines, ui.height - 10)
+
+    local win_config = {
+      relative = "editor",
+      width = width,
+      height = height,
+      col = math.floor((ui.width - width) / 2),
+      row = math.floor((ui.height - height) / 2),
+      border = "rounded",
+      style = "minimal",
+      title = "Astra Menu",
+      title_pos = "center"
+    }
+
+    local win = vim.api.nvim_open_win(buf, true, win_config)
+    vim.api.nvim_win_set_option(win, "wrap", true)
+    vim.api.nvim_win_set_option(win, "cursorline", true)
+
+    -- 创建菜单处理器
+    local menu_handler = vim.api.nvim_create_augroup("AstraMenu", { clear = true })
+
+    -- 设置快捷键
+    vim.api.nvim_buf_set_keymap(buf, "n", "q", "", {
+      callback = function()
+        vim.api.nvim_win_close(win, true)
+        vim.api.nvim_del_augroup_by_id(menu_handler)
+      end,
+      noremap = true,
+      silent = true
+    })
+
+    vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", "", {
+      callback = function()
+        vim.api.nvim_win_close(win, true)
+        vim.api.nvim_del_augroup_by_id(menu_handler)
+      end,
+      noremap = true,
+      silent = true
+    })
+
+    -- 为菜单项设置按键绑定
+    vim.api.nvim_buf_set_keymap(buf, "n", "h", "", {
+      callback = function()
+        vim.api.nvim_win_close(win, true)
+        vim.api.nvim_del_augroup_by_id(menu_handler)
+        M._show_help()
+      end,
+      noremap = true,
+      silent = true
+    })
+
+    vim.api.nvim_buf_set_keymap(buf, "n", "v", "", {
+      callback = function()
+        vim.api.nvim_win_close(win, true)
+        vim.api.nvim_del_augroup_by_id(menu_handler)
+        local Binary = require("astra.core.binary")
+        local binary_status = Binary.validate()
+        if binary_status.available then
+          vim.notify("📊 Astra Version: " .. (binary_status.version or "unknown"), vim.log.levels.INFO)
+          vim.notify("🔧 Binary: " .. binary_status.path, vim.log.levels.INFO)
+          vim.notify("🏗️  Build Type: " .. binary_status.type, vim.log.levels.INFO)
+        else
+          vim.notify("❌ No binary available - run :AstraBuild", vim.log.levels.ERROR)
+        end
+      end,
+      noremap = true,
+      silent = true
+    })
+
+    -- 根据功能级别设置不同的按键
+    if level == "full" then
+      vim.api.nvim_buf_set_keymap(buf, "n", "u", "", {
+        callback = function()
+          vim.api.nvim_win_close(win, true)
+          vim.api.nvim_del_augroup_by_id(menu_handler)
+          Sync.upload()
+        end,
+        noremap = true,
+        silent = true
+      })
+
+      vim.api.nvim_buf_set_keymap(buf, "n", "d", "", {
+        callback = function()
+          vim.api.nvim_win_close(win, true)
+          vim.api.nvim_del_augroup_by_id(menu_handler)
+          Sync.download()
+        end,
+        noremap = true,
+        silent = true
+      })
+
+      vim.api.nvim_buf_set_keymap(buf, "n", "s", "", {
+        callback = function()
+          vim.api.nvim_win_close(win, true)
+          vim.api.nvim_del_augroup_by_id(menu_handler)
+          Sync.sync()
+        end,
+        noremap = true,
+        silent = true
+      })
+
+      vim.api.nvim_buf_set_keymap(buf, "n", "i", "", {
+        callback = function()
+          vim.api.nvim_win_close(win, true)
+          vim.api.nvim_del_augroup_by_id(menu_handler)
+          Sync.status()
+        end,
+        noremap = true,
+        silent = true
+      })
+
+      vim.api.nvim_buf_set_keymap(buf, "n", "c", "", {
+        callback = function()
+          vim.api.nvim_win_close(win, true)
+          vim.api.nvim_del_augroup_by_id(menu_handler)
+          Config.init_project_config()
+        end,
+        noremap = true,
+        silent = true
+      })
+
+      vim.api.nvim_buf_set_keymap(buf, "n", "w", "", {
+        callback = function()
+          vim.api.nvim_win_close(win, true)
+          vim.api.nvim_del_augroup_by_id(menu_handler)
+          Config.quick_setup()
+        end,
+        noremap = true,
+        silent = true
+      })
+    elseif level == "basic" then
+      if not M.state.binary_available then
+        vim.api.nvim_buf_set_keymap(buf, "n", "b", "", {
+          callback = function()
+            vim.api.nvim_win_close(win, true)
+            vim.api.nvim_del_augroup_by_id(menu_handler)
+            Binary.build()
+          end,
+          noremap = true,
+          silent = true
+        })
+      else
+        vim.api.nvim_buf_set_keymap(buf, "n", "c", "", {
+          callback = function()
+            vim.api.nvim_win_close(win, true)
+            vim.api.nvim_del_augroup_by_id(menu_handler)
+            Config.init_project_config()
+          end,
+          noremap = true,
+          silent = true
+        })
+
+        vim.api.nvim_buf_set_keymap(buf, "n", "w", "", {
+          callback = function()
+            vim.api.nvim_win_close(win, true)
+            vim.api.nvim_del_augroup_by_id(menu_handler)
+            Config.quick_setup()
+          end,
+          noremap = true,
+          silent = true
+        })
+      end
+    end
+
+    -- 关闭时清理
+    vim.api.nvim_create_autocmd("WinClosed", {
+      pattern = tostring(win),
+      once = true,
+      callback = function()
+        if vim.api.nvim_buf_is_valid(buf) then
+          vim.api.nvim_buf_delete(buf, {force = true})
+        end
+        vim.api.nvim_del_augroup_by_id(menu_handler)
+      end
+    })
+  end)
+
+  if not ok then
+    vim.notify("❌ Astra: Error showing menu - " .. tostring(result), vim.log.levels.ERROR)
+    vim.notify("💡 Try :AstraHelp for available commands", vim.log.levels.INFO)
   end
-
-  -- 使用 vim.notify 显示帮助
-  local help_text = table.concat(help_lines, "\n")
-  vim.notify(help_text, vim.log.levels.INFO)
 end
-
--- 获取当前状态
-function M.get_state()
-  return vim.deepcopy(M.state)
-end
-
--- 重新初始化（用于状态变更时）
-function M.reinitialize()
-  M.state.initialized = false
-  return M.initialize()
-end
-
-return M
