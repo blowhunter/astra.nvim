@@ -14,7 +14,7 @@ M._setup_plugin = function(opts)
 
   -- 尝试初始化核心模块（如果可用）
   local ok_core, Core = pcall(require, "astra.core")
-  if ok_core then
+  if ok_core and type(Core) == "table" and Core.initialize then
     Core.initialize()
     vim.notify("✅ Astra: Core module initialized", vim.log.levels.INFO)
   else
@@ -23,7 +23,7 @@ M._setup_plugin = function(opts)
 
   -- 检查二进制文件状态
   local ok_binary, Binary = pcall(require, "astra.core.binary")
-  if ok_binary then
+  if ok_binary and type(Binary) == "table" and Binary.validate then
     local status = Binary.validate()
     if status.available then
       vim.notify("✅ Astra: Binary available - " .. (status.version or "unknown"), vim.log.levels.INFO)
@@ -34,7 +34,7 @@ M._setup_plugin = function(opts)
 
   -- 检查配置状态
   local ok_config, Config = pcall(require, "astra.core.config")
-  if ok_config then
+  if ok_config and type(Config) == "table" and Config.validate_project_config then
     local config_status = Config.validate_project_config()
     if config_status.available then
       vim.notify("✅ Astra: Configuration available", vim.log.levels.INFO)

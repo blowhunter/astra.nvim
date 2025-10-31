@@ -442,3 +442,5 @@ function M._show_main_menu()
     vim.notify("💡 Try :AstraHelp for available commands", vim.log.levels.INFO)
   end
 end
+
+return M
