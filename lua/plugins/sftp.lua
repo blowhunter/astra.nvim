@@ -226,9 +226,9 @@ M._register_core_commands = function()
         vim.notify("❌ Test file not found: " .. test_path, vim.log.levels.ERROR)
       end
     end, "Run all functionality tests")
-  end,
+end
 
-  -- 核心键映射注册
+-- 核心键映射注册
 M._register_core_keymaps = function()
     local leader = vim.g.maplocalleader or vim.g.mapleader or " "
 
