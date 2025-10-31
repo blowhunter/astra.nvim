@@ -228,59 +228,6 @@ M._register_core_commands = function()
     end, "Run all functionality tests")
 end
 
--- 核心键映射注册
-M._register_core_keymaps = function()
-    local leader = vim.g.maplocalleader or vim.g.mapleader or " "
-
-    local function safe_keymap(key, func, desc)
-      vim.keymap.set('n', leader .. key, function()
-        local ok, result = pcall(func)
-        if not ok then
-          vim.notify("❌ Astra: " .. desc .. " failed: " .. tostring(result), vim.log.levels.ERROR)
-        end
-      end, { desc = desc, noremap = true, silent = true })
-    end
-
-    -- 配置管理键映射
-    safe_keymap("Ai", function()
-      vim.cmd("AstraInit")
-    end, "Initialize config")
-
-    safe_keymap("Ab", function()
-      vim.cmd("AstraBuild")
-    end, "Build binary")
-
-    safe_keymap("Ac", function()
-      vim.cmd("AstraConfig")
-    end, "Show config")
-
-    -- 文件操作键映射
-    safe_keymap("Au", function()
-      vim.cmd("AstraUpload")
-    end, "Upload file")
-
-    safe_keymap("Ad", function()
-      vim.cmd("AstraDownload")
-    end, "Download file")
-
-    -- 同步功能键映射
-    safe_keymap("As", function()
-      vim.cmd("AstraSync")
-    end, "Sync project")
-
-    safe_keymap("Aa", function()
-      vim.cmd("AstraIncSync")
-    end, "Incremental sync")
-
-    -- 信息查看键映射
-    safe_keymap("Av", function()
-      vim.cmd("AstraVersion")
-    end, "Show version")
-
-    safe_keymap("Ah", function()
-      vim.cmd("AstraHelp")
-    end, "Show help")
-end
 
 -- 返回Lazyvim插件配置
 return {
@@ -321,6 +268,26 @@ return {
     auto_save_config = false,
   },
 
+  -- 快捷键定义
+  keys = {
+    -- 配置管理键映射
+    { "<leader>Ai", "<cmd>AstraInit<cr>", desc = "Astra: Initialize config" },
+    { "<leader>Ab", "<cmd>AstraBuild<cr>", desc = "Astra: Build binary" },
+    { "<leader>Ac", "<cmd>AstraConfig<cr>", desc = "Astra: Show config" },
+
+    -- 文件操作键映射
+    { "<leader>Au", "<cmd>AstraUpload<cr>", desc = "Astra: Upload file" },
+    { "<leader>Ad", "<cmd>AstraDownload<cr>", desc = "Astra: Download file" },
+
+    -- 同步功能键映射
+    { "<leader>As", "<cmd>AstraSync<cr>", desc = "Astra: Sync project" },
+    { "<leader>Aa", "<cmd>AstraIncSync<cr>", desc = "Astra: Incremental sync" },
+
+    -- 信息查看键映射
+    { "<leader>Av", "<cmd>AstraVersion<cr>", desc = "Astra: Show version" },
+    { "<leader>Ah", "<cmd>AstraHelp<cr>", desc = "Astra: Show help" },
+  },
+
   -- 配置函数
   config = function(_, opts)
     -- 初始化插件设置
@@ -328,8 +295,5 @@ return {
 
     -- 注册核心命令（8个使用场景）
     M._register_core_commands()
-
-    -- 注册核心键映射
-    M._register_core_keymaps()
   end,
 }
