@@ -1,99 +1,51 @@
 -- Astra.nvim 核心配置文件
 -- 专注于8个核心使用场景，保持代码简洁
 
-return {
-  "blowhunter/astra.nvim",
-  dependencies = {
-    "nvim-lua/plenary.nvim",
-  },
-  lazy = false,
-  priority = 100,
+local M = {}
 
-  -- 核心配置：支持8个使用场景
-  opts = {
-    -- 基础连接配置
-    host = "",
-    port = 22,
-    username = "",
-    password = nil,
-    private_key_path = "~/.ssh/id_rsa",
-    remote_path = "",
-    local_path = vim.fn.getcwd(),
+-- 插件设置初始化
+M._setup_plugin = function(opts)
+  -- 保存配置到全局变量供其他模块使用
+  _G.AstraConfig = opts
 
-    -- 同步设置
-    auto_sync = false,
-    sync_on_save = true,
-    sync_interval = 30000,
+  -- 添加插件路径到 package.path
+  local plugin_path = vim.fn.stdpath("data") .. "/lazy/astra.nvim/lua"
+  package.path = plugin_path .. "/?.lua;" .. package.path
 
-    -- 文件过滤
-    exclude_patterns = {
-      ".git/", "*.tmp", "*.log", ".DS_Store",
-      "node_modules/", "target/", "build/", "dist/"
-    },
-    max_file_size = 10 * 1024 * 1024,  -- 10MB
+  -- 尝试初始化核心模块（如果可用）
+  local ok_core, Core = pcall(require, "astra.core")
+  if ok_core then
+    Core.initialize()
+    vim.notify("✅ Astra: Core module initialized", vim.log.levels.INFO)
+  else
+    vim.notify("ℹ️  Astra: Core module will be loaded on demand", vim.log.levels.INFO)
+  end
 
-    -- 开发选项
-    static_build = false,
-    debug_mode = false,
-    notification_enabled = true,
-    auto_save_config = false,
-  },
-
-  -- 配置函数
-  config = function(_, opts)
-    -- 初始化插件设置
-    M._setup_plugin(opts)
-
-    -- 注册核心命令（8个使用场景）
-    M._register_core_commands()
-
-    -- 注册核心键映射
-    M._register_core_keymaps()
-  end,
-
-  -- 插件设置初始化
-  _setup_plugin = function(opts)
-    -- 保存配置到全局变量供其他模块使用
-    _G.AstraConfig = opts
-
-    -- 添加插件路径到 package.path
-    local plugin_path = vim.fn.stdpath("data") .. "/lazy/astra.nvim/lua"
-    package.path = plugin_path .. "/?.lua;" .. package.path
-
-    -- 尝试初始化核心模块（如果可用）
-    local ok_core, Core = pcall(require, "astra.core")
-    if ok_core then
-      Core.initialize()
-      vim.notify("✅ Astra: Core module initialized", vim.log.levels.INFO)
+  -- 检查二进制文件状态
+  local ok_binary, Binary = pcall(require, "astra.core.binary")
+  if ok_binary then
+    local status = Binary.validate()
+    if status.available then
+      vim.notify("✅ Astra: Binary available - " .. (status.version or "unknown"), vim.log.levels.INFO)
     else
-      vim.notify("ℹ️  Astra: Core module will be loaded on demand", vim.log.levels.INFO)
+      vim.notify("ℹ️  Astra: Run :AstraBuild to build binary", vim.log.levels.INFO)
     end
+  end
 
-    -- 检查二进制文件状态
-    local ok_binary, Binary = pcall(require, "astra.core.binary")
-    if ok_binary then
-      local status = Binary.validate()
-      if status.available then
-        vim.notify("✅ Astra: Binary available - " .. (status.version or "unknown"), vim.log.levels.INFO)
-      else
-        vim.notify("ℹ️  Astra: Run :AstraBuild to build binary", vim.log.levels.INFO)
-      end
+  -- 检查配置状态
+  local ok_config, Config = pcall(require, "astra.core.config")
+  if ok_config then
+    local config_status = Config.validate_project_config()
+    if config_status.available then
+      vim.notify("✅ Astra: Configuration available", vim.log.levels.INFO)
+    else
+      vim.notify("ℹ️  Astra: Run :AstraInit to initialize configuration", vim.log.levels.INFO)
     end
+  end
+end
 
-    -- 检查配置状态
-    local ok_config, Config = pcall(require, "astra.core.config")
-    if ok_config then
-      local config_status = Config.validate_project_config()
-      if config_status.available then
-        vim.notify("✅ Astra: Configuration available", vim.log.levels.INFO)
-      else
-        vim.notify("ℹ️  Astra: Run :AstraInit to initialize configuration", vim.log.levels.INFO)
-      end
-    end
-  end,
-
-  -- 核心命令注册
-  _register_core_commands = function()
+-- 核心命令注册
+M._register_core_commands = function()
     local function safe_require(module_name)
       local ok, module = pcall(require, module_name)
       if not ok then
@@ -277,7 +229,7 @@ return {
   end,
 
   -- 核心键映射注册
-  _register_core_keymaps = function()
+M._register_core_keymaps = function()
     local leader = vim.g.maplocalleader or vim.g.mapleader or " "
 
     local function safe_keymap(key, func, desc)
@@ -328,5 +280,56 @@ return {
     safe_keymap("Ah", function()
       vim.cmd("AstraHelp")
     end, "Show help")
+end
+
+-- 返回Lazyvim插件配置
+return {
+  "blowhunter/astra.nvim",
+  dependencies = {
+    "nvim-lua/plenary.nvim",
+  },
+  lazy = false,
+  priority = 100,
+
+  -- 核心配置：支持8个使用场景
+  opts = {
+    -- 基础连接配置
+    host = "",
+    port = 22,
+    username = "",
+    password = nil,
+    private_key_path = "~/.ssh/id_rsa",
+    remote_path = "",
+    local_path = vim.fn.getcwd(),
+
+    -- 同步设置
+    auto_sync = false,
+    sync_on_save = true,
+    sync_interval = 30000,
+
+    -- 文件过滤
+    exclude_patterns = {
+      ".git/", "*.tmp", "*.log", ".DS_Store",
+      "node_modules/", "target/", "build/", "dist/"
+    },
+    max_file_size = 10 * 1024 * 1024,  -- 10MB
+
+    -- 开发选项
+    static_build = false,
+    debug_mode = false,
+    notification_enabled = true,
+    auto_save_config = false,
+  },
+
+  -- 配置函数
+  config = function(_, opts)
+    -- 初始化插件设置
+    M._setup_plugin(opts)
+
+    -- 注册核心命令（8个使用场景）
+    M._register_core_commands()
+
+    -- 注册核心键映射
+    M._register_core_keymaps()
   end,
 }
