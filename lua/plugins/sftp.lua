@@ -182,13 +182,9 @@ M._smart_build = function()
 end
 
 M._smart_config = function()
-  local status = M._check_status()
-
-  if status.config_available then
-    vim.cmd("AstraConfig")
-  else
-    vim.notify("❌ 未找到配置文件", vim.log.levels.WARN)
-    vim.notify("💡 请运行 <leader>Ai 或 :AstraInit 来初始化配置", vim.log.levels.INFO)
+  local Config = safe_require("astra.core.config")
+  if Config then
+    Config.info()  -- 使用新的弹窗展示
   end
 end
 
@@ -348,17 +344,7 @@ M._register_core_commands = function()
     safe_command("AstraConfig", function()
       local Config = safe_require("astra.core.config")
       if Config then
-        local status = Config.validate_project_config()
-        if status.available then
-          vim.notify("📋 Astra Configuration:", vim.log.levels.INFO)
-          for k, v in pairs(status.config) do
-            if type(v) ~= "table" then
-              vim.notify(string.format("  %s: %s", k, tostring(v)), vim.log.levels.INFO)
-            end
-          end
-        else
-          vim.notify("❌ No configuration found", vim.log.levels.WARN)
-        end
+        Config.info()  -- 使用新的弹窗展示
       end
     end, "Show current configuration")
 

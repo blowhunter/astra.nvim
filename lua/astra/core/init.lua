@@ -129,6 +129,10 @@ function M._register_full_commands()
   vim.api.nvim_create_user_command("AstraVersion", function()
     Sync.version()
   end, { desc = "Show Astra version" })
+
+  vim.api.nvim_create_user_command("AstraConfig", function()
+    Config.info()
+  end, { desc = "Show Astra configuration" })
 end
 
 -- 注册基本键映射
