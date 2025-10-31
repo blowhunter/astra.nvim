@@ -5,6 +5,7 @@ pub mod error;
 pub mod i18n;
 pub mod sftp;
 pub mod types;
+pub mod version;
 
 #[cfg(test)]
 mod cli_tests;

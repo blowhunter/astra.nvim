@@ -6,13 +6,25 @@ use clap::{Parser, Subcommand};
 use std::fs;
 use std::path::Path;
 use {serde_json, tracing_subscriber};
+use crate::version;
+
+// Version constants are included via version module
 
 #[derive(Parser)]
 #[command(name = "astra")]
 #[command(about = "Neovim SFTP synchronization tool")]
+#[command(disable_version_flag = true)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
+
+    /// Show version information and exit
+    #[arg(long, short = 'V')]
+    pub version: bool,
+
+    /// Show detailed build information
+    #[arg(long)]
+    pub build_info: bool,
 }
 
 #[derive(Subcommand)]
@@ -80,6 +92,17 @@ pub enum Commands {
 
 pub async fn run_cli(cli: Cli) -> AstraResult<()> {
     tracing_subscriber::fmt::init();
+
+    // Handle version and build info flags
+    if cli.version {
+        print_version();
+        return Ok(());
+    }
+
+    if cli.build_info {
+        print_build_info();
+        return Ok(());
+    }
 
     match cli.command {
         Commands::Init {
@@ -464,32 +487,41 @@ async fn test_config(config_path: Option<&str>) -> AstraResult<()> {
     Ok(())
 }
 
+fn print_version() {
+    println!("Astra-core {}", version::FULL_VERSION);
+    println!("Build time: {}", version::BUILD_TIME);
+}
+
+fn print_build_info() {
+    println!("Astra-core");
+    println!("  Version: {}", version::FULL_VERSION);
+    println!("  Build time: {}", version::BUILD_TIME);
+    println!("  Git commit: {}", version::GIT_COMMIT);
+
+    // Parse additional version info from VERSION_INFO
+    for line in version::VERSION_INFO.lines() {
+        if let Some((key, value)) = line.split_once('=') {
+            let key = key.trim();
+            let value = value.trim().trim_matches('"');
+
+            match key {
+                "dirty" => println!("  Dirty: {}", if value == "true" { "Yes" } else { "No" }),
+                "version" => {} // Already handled above
+                _ => {}
+            }
+        }
+    }
+
+    // Display workspace status
+    if version::is_clean() {
+        println!("  Status: Clean workspace");
+    } else {
+        println!("  Status: Modified files present");
+    }
+}
+
 fn show_version() -> AstraResult<()> {
-    use chrono::{DateTime, Utc};
-    use std::env;
-
-    // Initialize i18n system
-    crate::i18n::init_translations();
-    let language = crate::i18n::detect_language();
-
-    let version_info = crate::i18n::t("cli.version_info", &language);
-    println!("{}", version_info);
-    println!("Version: {}", env!("CARGO_PKG_VERSION"));
-
-    // Try to get build environment variables
-    println!(
-        "Build Date: {}",
-        env::var("BUILD_DATE").unwrap_or_else(|_| "unknown".to_string())
-    );
-    println!(
-        "Rust Version: {}",
-        env::var("RUSTC_VERSION").unwrap_or_else(|_| "unknown".to_string())
-    );
-
-    // Show current time for reference
-    let now: DateTime<Utc> = Utc::now();
-    println!("Current Time: {}", now.format("%Y-%m-%d %H:%M:%S UTC"));
-
+    print_version();
     Ok(())
 }
 
